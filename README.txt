@@ -1,20 +1,22 @@
-루나 Spring Boot Java 11 프로젝트
+루나 Spring Boot + PostgreSQL 프로젝트
 
-개발 환경
+환경
 - Java 11
 - Spring Boot 2.7.18
-- Maven
-- HTML / CSS / JavaScript
-- STS 3에서 Maven Existing Project로 import 가능
+- PostgreSQL
+- MyBatis
+- Render Docker 배포
 
-로컬 접속 주소
-http://localhost:8080
+필수 환경변수
+- DB_URL
+- DB_USERNAME
+- DB_PASSWORD
 
-실행 클래스
-com.example.luna.LunaSpringApplication
+Render에서 사용할 DB_URL 형식
+jdbc:postgresql://호스트:5432/DB명
 
-Render 배포
-- GitHub 저장소에 프로젝트 업로드
-- Render Web Service 생성
-- Runtime: Docker
-- Free 인스턴스 선택
+주의
+- postgresql://사용자:비밀번호@호스트/DB명 형식을 그대로 넣지 말고
+  jdbc:postgresql://호스트:5432/DB명 형식으로 변환하세요.
+- 비밀번호는 GitHub나 application.properties에 직접 넣지 마세요.
+- schema.sql이 앱 시작 시 테이블과 초기 데이터를 자동 생성합니다.

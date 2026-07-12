@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.luna.LunaMapper">
+
+    <update id="increaseCount">
+        UPDATE luna_call_count
+           SET call_count = call_count + 1,
+               last_call_dtm = CURRENT_TIMESTAMP
+         WHERE id = 1
+    </update>
+
+    <select id="selectCount" resultType="long">
+        SELECT call_count
+          FROM luna_call_count
+         WHERE id = 1
+    </select>
+
+</mapper>

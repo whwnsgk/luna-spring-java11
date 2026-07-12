@@ -16,7 +16,7 @@
     <artifactId>luna-spring-java11</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>luna-spring-java11</name>
-    <description>Java 11 Spring Boot demo site</description>
+    <description>Java 11 Spring Boot + PostgreSQL demo site</description>
 
     <properties>
         <java.version>11</java.version>
@@ -32,6 +32,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <version>2.3.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>

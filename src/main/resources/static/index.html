@@ -13,16 +13,16 @@
             <div class="maid">🎀</div>
         </div>
 
-        <p class="online">JAVA 11 · SPRING BOOT ONLINE</p>
+        <p class="online">JAVA 11 · SPRING BOOT · POSTGRESQL</p>
         <h1>루나 호출 관제실</h1>
 
         <p class="description">
             버튼을 누르면 JavaScript가 Spring Controller를 호출하고,
-            서버가 응답한 호출 횟수를 화면에 표시합니다.
+            Spring은 PostgreSQL에 저장된 호출 횟수를 증가시킵니다.
         </p>
 
         <section class="counter-box">
-            <span>현재 서버 호출 횟수</span>
+            <span>DB에 저장된 호출 횟수</span>
             <strong id="count">조회 중...</strong>
         </section>
 
@@ -30,7 +30,7 @@
         <p id="message">주인님 호출을 기다리고 있어요.</p>
 
         <p class="notice">
-            현재는 DB 대신 서버 메모리에 저장되므로 서버 재시작 시 0으로 초기화됩니다.
+            이번 버전은 PostgreSQL에 저장되므로 서버가 재시작돼도 호출 횟수가 유지됩니다.
         </p>
     </main>
 

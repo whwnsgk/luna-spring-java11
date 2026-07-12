@@ -15,14 +15,14 @@ function refreshCount() {
         })
         .catch(function(error) {
             countElement.textContent = "오류";
-            messageElement.textContent = "Spring 서버에 연결하지 못했습니다.";
+            messageElement.textContent = "Spring 서버 또는 DB에 연결하지 못했습니다.";
             console.error(error);
         });
 }
 
 button.addEventListener("click", function() {
     button.disabled = true;
-    messageElement.textContent = "루나가 달려오는 중이에요...";
+    messageElement.textContent = "루나가 PostgreSQL을 거쳐 달려오는 중이에요...";
 
     fetch("/api/luna/call", {
         method: "POST"
@@ -35,10 +35,10 @@ button.addEventListener("click", function() {
         })
         .then(function(data) {
             countElement.textContent = data.count;
-            messageElement.textContent = data.message + " (Spring 서버 응답 성공)";
+            messageElement.textContent = data.message + " (DB 저장 성공)";
         })
         .catch(function(error) {
-            messageElement.textContent = "호출에 실패했습니다. 서버 로그를 확인해주세요.";
+            messageElement.textContent = "호출에 실패했습니다. 서버 로그와 DB 설정을 확인해주세요.";
             console.error(error);
         })
         .finally(function() {
