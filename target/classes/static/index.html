@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>루나 호출 관제실</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <main class="panel">
+        <div class="portrait">
+            <div class="moon">🌙</div>
+            <div class="maid">🎀</div>
+        </div>
+
+        <p class="online">JAVA 11 · SPRING BOOT ONLINE</p>
+        <h1>루나 호출 관제실</h1>
+
+        <p class="description">
+            버튼을 누르면 JavaScript가 Spring Controller를 호출하고,
+            서버가 응답한 호출 횟수를 화면에 표시합니다.
+        </p>
+
+        <section class="counter-box">
+            <span>현재 서버 호출 횟수</span>
+            <strong id="count">조회 중...</strong>
+        </section>
+
+        <button id="callButton" type="button">루나 불러보기</button>
+        <p id="message">주인님 호출을 기다리고 있어요.</p>
+
+        <p class="notice">
+            현재는 DB 대신 서버 메모리에 저장되므로 서버 재시작 시 0으로 초기화됩니다.
+        </p>
+    </main>
+
+    <script src="/app.js"></script>
+</body>
+</html>
