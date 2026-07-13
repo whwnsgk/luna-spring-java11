@@ -1,9 +1,37 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.3.8"></head>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.4.6"></head>
 <body>
 <header><div class="brand"><span class="brand-mark">RA</span><span>RIFT ARENA <small>롤 내전 관리실</small></span></div><nav><button class="nav-btn active" data-page="home">대시보드</button><button class="nav-btn" data-page="members">멤버</button><button class="nav-btn" data-page="draft">내전 짜기</button><button class="nav-btn" data-page="auction">토큰 경매</button><button class="nav-btn" data-page="matches">경기 기록</button><button class="nav-btn" data-page="stats">통계</button></nav></header>
 <div class="seasonbar"><div><span>시즌</span><select id="seasonFilter"></select></div><button id="manageSeason" class="btn btn-ghost btn-small">시즌 관리</button></div>
 <main>
-<section id="home" class="page active"><div class="hero"><div><b>IN-HOUSE CONTROL ROOM</b><h1>적일때 날 패던애들이,<br>우리팀에 오니 병신이 된다.</h1><p>멤버 등록, 10인 팀 편성, 경기 결과 수동 입력과 통계를 한 곳에서 관리합니다.</p><button class="btn btn-primary" data-page="draft">오늘의 내전 짜기</button></div><div class="orb">5 : 5</div></div><div id="metrics" class="metrics"></div><h2 class="section-title">시즌 어워드</h2><div id="awards" class="award-grid"></div><div class="twocol"><article><h2>최근 경기</h2><div id="recent"></div></article><article><h2>승률 명예의 전당</h2><div id="hall"></div></article></div></section>
+<section id="home" class="page active">
+  <div class="main-media-hero">
+    <video id="mainHeroVideo" class="main-media-video" autoplay muted loop playsinline preload="auto">
+      <source src="/media/main-video.mp4" type="video/mp4">
+    </video>
+    <div class="main-media-overlay"></div>
+
+    <img class="main-cameo-image" src="/media/main-image.png" alt="메인 카메오 이미지">
+
+    <div class="main-media-content">
+      <b>IN-HOUSE CONTROL ROOM</b>
+      <h1>적이었을떈 날 패던놈들이,<br>우리팀에 오니 병신이되었다.</h1>
+      <blockquote class="main-quote">“이원우 선생의 명언,<br>2026.07.01.”</blockquote>
+      <p>이런 피해자가 나오지 않기 위한 공정한 관리 시스템.</p>
+      <div class="main-media-actions">
+        <button class="btn btn-primary" data-page="draft">내전 짜기</button>
+        <button class="btn btn-ghost" data-page="members">멤버 보기</button>
+      </div>
+    </div>
+
+    <button id="mainVideoToggle" class="main-video-toggle" type="button">영상 일시정지</button>
+  </div>
+
+  <div class="legacy-home-content">
+
+<div class="hero"><div><b>IN-HOUSE CONTROL ROOM</b><h1>누구도 소외되지 않게,<br>정호님도 즐겁게 내전할수 있게.</h1><p>왕관의 무게를 견뎌야죠.</p><button class="btn btn-primary" data-page="draft">오늘의 내전 짜기</button></div><div class="orb">5 : 5</div></div><div id="metrics" class="metrics"></div><h2 class="section-title">시즌 어워드</h2><div id="awards" class="award-grid"></div><div class="twocol"><article><h2>최근 경기</h2><div id="recent"></div></article><article><h2>승률 명예의 전당</h2><div id="hall"></div></article></div>
+  
+  </div>
+</section>
 <section id="members" class="page">
   <div class="heading">
     <div><b>MEMBERS</b><h1>멤버 관리</h1></div>
@@ -15,7 +43,15 @@
   <div id="bulkRiotResult" class="bulk-riot-result hidden"></div>
   <div id="memberList" class="cards"></div>
 </section>
-<section id="draft" class="page"><div class="heading"><div><b>TEAM BUILDER</b><h1>내전 짜기</h1><p>멤버 카드를 더블클릭해 10명을 선택하거나 팀 칸으로 드래그하세요.</p></div><div><button id="clear" class="btn btn-ghost">초기화</button> <button id="auto" class="btn btn-primary">자동 짜기</button></div></div><div class="draftgrid">
+<section id="draft" class="page"><div class="heading"><div><b>TEAM BUILDER</b><h1>내전 짜기</h1><p>멤버 카드를 더블클릭해 10명을 선택하거나 팀 칸으로 드래그하세요.</p></div><div class="draft-heading-actions">
+  <button id="draftBgmToggle" class="btn btn-ghost">내전 BGM 켜기</button>
+  <label class="draft-volume">볼륨
+    <input id="draftBgmVolume" type="range" min="0" max="100" value="35">
+  </label>
+  <span id="draftBgmStatus" class="draft-bgm-status">BGM 대기</span>
+  <button id="clear" class="btn btn-ghost">초기화</button>
+  <button id="auto" class="btn btn-primary">자동 짜기</button>
+</div></div><div class="draftgrid">
   <article>
     <h2>멤버 풀</h2>
     <div id="pool" class="drop"></div>
@@ -125,7 +161,7 @@
           <button class="bid-btn blue-bid" data-team="BLUE" data-add="unit">+ 기본</button>
           <button class="bid-btn blue-bid" data-team="BLUE" data-add="50">+50</button>
           <button class="bid-btn blue-bid" data-team="BLUE" data-add="100">+100</button>
-        </div><div class="host-action-box"><input id="blueAppealInput" maxlength="80" placeholder="이 매물 어필 한마디"><button id="blueAppealSend" class="btn btn-ghost btn-small">어필 전송</button><button id="blueSurrender" class="btn btn-danger">경매 포기</button><small id="blueReserveInfo"></small></div>
+        </div><div class="host-action-box"><div class="direct-bid-box"><input id="blueDirectBid" type="number" min="10" step="10" placeholder="직접 입찰 금액"><button id="blueDirectBidSend" class="btn btn-primary btn-small">입찰</button></div><button id="blueSurrender" class="btn btn-danger">포기</button><small id="blueReserveInfo"></small></div>
       </article>
 
       <article class="auction-center">
@@ -139,7 +175,7 @@
           <div id="candidateAvatar" class="candidate-avatar">?</div>
           <h2 id="candidateName">경매를 시작해주세요</h2>
           <p id="candidateRiotId">-</p>
-          <div class="candidate-stats"><span id="candidateRank">UNRANKED</span><strong id="candidateCost">0</strong></div><div class="candidate-kda"><div><small>최근 전적</small><b id="candidateRecord">0승 0패</b></div><div><small>평균 K/D/A</small><b id="candidateKda">0/0/0</b></div><div><small>모스트 라인</small><b id="candidateLane">-</b></div></div><div class="appeal-board"><div class="blue-appeal"><small>블루 어필</small><p id="blueAppealText">-</p></div><div class="red-appeal"><small>레드 어필</small><p id="redAppealText">-</p></div></div>
+          <div class="candidate-stats"><span id="candidateRank">UNRANKED</span><strong id="candidateCost">0</strong></div><div class="candidate-kda"><div><small>최근 전적</small><b id="candidateRecord">0승 0패</b></div><div><small>평균 K/D/A</small><b id="candidateKda">0/0/0</b></div><div><small>모스트 라인</small><b id="candidateLane">-</b></div></div><div class="candidate-most-champion"><small>내전 최다 플레이 챔피언</small><div><img id="candidateMostChampionImage" class="champion-icon champion-card-icon champion-icon-empty" alt=""><b id="candidateMostChampion">기록 없음</b></div></div>
         </div>
 
         <div id="countdownRing" class="countdown-ring">
@@ -171,7 +207,7 @@
           <button class="bid-btn red-bid" data-team="RED" data-add="unit">+ 기본</button>
           <button class="bid-btn red-bid" data-team="RED" data-add="50">+50</button>
           <button class="bid-btn red-bid" data-team="RED" data-add="100">+100</button>
-        </div><div class="host-action-box"><input id="redAppealInput" maxlength="80" placeholder="이 매물 어필 한마디"><button id="redAppealSend" class="btn btn-ghost btn-small">어필 전송</button><button id="redSurrender" class="btn btn-danger">경매 포기</button><small id="redReserveInfo"></small></div>
+        </div><div class="host-action-box"><div class="direct-bid-box"><input id="redDirectBid" type="number" min="10" step="10" placeholder="직접 입찰 금액"><button id="redDirectBidSend" class="btn btn-primary btn-small">입찰</button></div><button id="redSurrender" class="btn btn-danger">포기</button><small id="redReserveInfo"></small></div>
       </article>
     </div>
 
@@ -245,169 +281,5 @@
   </div>
 </div>
 
-<datalist id="championOptions">
-<option value="가렌" label="Garen"></option><option value="Garen" label="가렌"></option>
-<option value="갈리오" label="Galio"></option><option value="Galio" label="갈리오"></option>
-<option value="갱플랭크" label="Gangplank"></option><option value="Gangplank" label="갱플랭크"></option>
-<option value="그라가스" label="Gragas"></option><option value="Gragas" label="그라가스"></option>
-<option value="그레이브즈" label="Graves"></option><option value="Graves" label="그레이브즈"></option>
-<option value="그웬" label="Gwen"></option><option value="Gwen" label="그웬"></option>
-<option value="나르" label="Gnar"></option><option value="Gnar" label="나르"></option>
-<option value="나미" label="Nami"></option><option value="Nami" label="나미"></option>
-<option value="나서스" label="Nasus"></option><option value="Nasus" label="나서스"></option>
-<option value="나피리" label="Naafiri"></option><option value="Naafiri" label="나피리"></option>
-<option value="노틸러스" label="Nautilus"></option><option value="Nautilus" label="노틸러스"></option>
-<option value="녹턴" label="Nocturne"></option><option value="Nocturne" label="녹턴"></option>
-<option value="누누와 윌럼프" label="Nunu & Willump"></option><option value="Nunu & Willump" label="누누와 윌럼프"></option>
-<option value="니달리" label="Nidalee"></option><option value="Nidalee" label="니달리"></option>
-<option value="니코" label="Neeko"></option><option value="Neeko" label="니코"></option>
-<option value="닐라" label="Nilah"></option><option value="Nilah" label="닐라"></option>
-<option value="다리우스" label="Darius"></option><option value="Darius" label="다리우스"></option>
-<option value="다이애나" label="Diana"></option><option value="Diana" label="다이애나"></option>
-<option value="드레이븐" label="Draven"></option><option value="Draven" label="드레이븐"></option>
-<option value="라이즈" label="Ryze"></option><option value="Ryze" label="라이즈"></option>
-<option value="라칸" label="Rakan"></option><option value="Rakan" label="라칸"></option>
-<option value="람머스" label="Rammus"></option><option value="Rammus" label="람머스"></option>
-<option value="럭스" label="Lux"></option><option value="Lux" label="럭스"></option>
-<option value="럼블" label="Rumble"></option><option value="Rumble" label="럼블"></option>
-<option value="레나타 글라스크" label="Renata Glasc"></option><option value="Renata Glasc" label="레나타 글라스크"></option>
-<option value="레넥톤" label="Renekton"></option><option value="Renekton" label="레넥톤"></option>
-<option value="레오나" label="Leona"></option><option value="Leona" label="레오나"></option>
-<option value="렉사이" label="Rek'Sai"></option><option value="Rek'Sai" label="렉사이"></option>
-<option value="렐" label="Rell"></option><option value="Rell" label="렐"></option>
-<option value="렝가" label="Rengar"></option><option value="Rengar" label="렝가"></option>
-<option value="루시안" label="Lucian"></option><option value="Lucian" label="루시안"></option>
-<option value="룰루" label="Lulu"></option><option value="Lulu" label="룰루"></option>
-<option value="르블랑" label="LeBlanc"></option><option value="LeBlanc" label="르블랑"></option>
-<option value="리 신" label="Lee Sin"></option><option value="Lee Sin" label="리 신"></option>
-<option value="리븐" label="Riven"></option><option value="Riven" label="리븐"></option>
-<option value="리산드라" label="Lissandra"></option><option value="Lissandra" label="리산드라"></option>
-<option value="릴리아" label="Lillia"></option><option value="Lillia" label="릴리아"></option>
-<option value="마스터 이" label="Master Yi"></option><option value="Master Yi" label="마스터 이"></option>
-<option value="마오카이" label="Maokai"></option><option value="Maokai" label="마오카이"></option>
-<option value="말자하" label="Malzahar"></option><option value="Malzahar" label="말자하"></option>
-<option value="말파이트" label="Malphite"></option><option value="Malphite" label="말파이트"></option>
-<option value="모데카이저" label="Mordekaiser"></option><option value="Mordekaiser" label="모데카이저"></option>
-<option value="모르가나" label="Morgana"></option><option value="Morgana" label="모르가나"></option>
-<option value="문도 박사" label="Dr. Mundo"></option><option value="Dr. Mundo" label="문도 박사"></option>
-<option value="미스 포츈" label="Miss Fortune"></option><option value="Miss Fortune" label="미스 포츈"></option>
-<option value="밀리오" label="Milio"></option><option value="Milio" label="밀리오"></option>
-<option value="바드" label="Bard"></option><option value="Bard" label="바드"></option>
-<option value="바루스" label="Varus"></option><option value="Varus" label="바루스"></option>
-<option value="바이" label="Vi"></option><option value="Vi" label="바이"></option>
-<option value="베이가" label="Veigar"></option><option value="Veigar" label="베이가"></option>
-<option value="베인" label="Vayne"></option><option value="Vayne" label="베인"></option>
-<option value="벡스" label="Vex"></option><option value="Vex" label="벡스"></option>
-<option value="벨베스" label="Bel'Veth"></option><option value="Bel'Veth" label="벨베스"></option>
-<option value="벨코즈" label="Vel'Koz"></option><option value="Vel'Koz" label="벨코즈"></option>
-<option value="볼리베어" label="Volibear"></option><option value="Volibear" label="볼리베어"></option>
-<option value="브라움" label="Braum"></option><option value="Braum" label="브라움"></option>
-<option value="브라이어" label="Briar"></option><option value="Briar" label="브라이어"></option>
-<option value="브랜드" label="Brand"></option><option value="Brand" label="브랜드"></option>
-<option value="블라디미르" label="Vladimir"></option><option value="Vladimir" label="블라디미르"></option>
-<option value="블릿츠크랭크" label="Blitzcrank"></option><option value="Blitzcrank" label="블릿츠크랭크"></option>
-<option value="비에고" label="Viego"></option><option value="Viego" label="비에고"></option>
-<option value="빅토르" label="Viktor"></option><option value="Viktor" label="빅토르"></option>
-<option value="뽀삐" label="Poppy"></option><option value="Poppy" label="뽀삐"></option>
-<option value="사미라" label="Samira"></option><option value="Samira" label="사미라"></option>
-<option value="사이온" label="Sion"></option><option value="Sion" label="사이온"></option>
-<option value="사일러스" label="Sylas"></option><option value="Sylas" label="사일러스"></option>
-<option value="샤코" label="Shaco"></option><option value="Shaco" label="샤코"></option>
-<option value="세나" label="Senna"></option><option value="Senna" label="세나"></option>
-<option value="세라핀" label="Seraphine"></option><option value="Seraphine" label="세라핀"></option>
-<option value="세주아니" label="Sejuani"></option><option value="Sejuani" label="세주아니"></option>
-<option value="세트" label="Sett"></option><option value="Sett" label="세트"></option>
-<option value="소나" label="Sona"></option><option value="Sona" label="소나"></option>
-<option value="소라카" label="Soraka"></option><option value="Soraka" label="소라카"></option>
-<option value="쉔" label="Shen"></option><option value="Shen" label="쉔"></option>
-<option value="쉬바나" label="Shyvana"></option><option value="Shyvana" label="쉬바나"></option>
-<option value="스웨인" label="Swain"></option><option value="Swain" label="스웨인"></option>
-<option value="스카너" label="Skarner"></option><option value="Skarner" label="스카너"></option>
-<option value="시비르" label="Sivir"></option><option value="Sivir" label="시비르"></option>
-<option value="신 짜오" label="Xin Zhao"></option><option value="Xin Zhao" label="신 짜오"></option>
-<option value="신드라" label="Syndra"></option><option value="Syndra" label="신드라"></option>
-<option value="신지드" label="Singed"></option><option value="Singed" label="신지드"></option>
-<option value="쓰레쉬" label="Thresh"></option><option value="Thresh" label="쓰레쉬"></option>
-<option value="아리" label="Ahri"></option><option value="Ahri" label="아리"></option>
-<option value="아무무" label="Amumu"></option><option value="Amumu" label="아무무"></option>
-<option value="아우렐리온 솔" label="Aurelion Sol"></option><option value="Aurelion Sol" label="아우렐리온 솔"></option>
-<option value="아이번" label="Ivern"></option><option value="Ivern" label="아이번"></option>
-<option value="아지르" label="Azir"></option><option value="Azir" label="아지르"></option>
-<option value="아칼리" label="Akali"></option><option value="Akali" label="아칼리"></option>
-<option value="아크샨" label="Akshan"></option><option value="Akshan" label="아크샨"></option>
-<option value="아트록스" label="Aatrox"></option><option value="Aatrox" label="아트록스"></option>
-<option value="아펠리오스" label="Aphelios"></option><option value="Aphelios" label="아펠리오스"></option>
-<option value="알리스타" label="Alistar"></option><option value="Alistar" label="알리스타"></option>
-<option value="암베사" label="Ambessa"></option><option value="Ambessa" label="암베사"></option>
-<option value="애니" label="Annie"></option><option value="Annie" label="애니"></option>
-<option value="애니비아" label="Anivia"></option><option value="Anivia" label="애니비아"></option>
-<option value="오로라" label="Aurora"></option><option value="Aurora" label="오로라"></option>
-<option value="애쉬" label="Ashe"></option><option value="Ashe" label="애쉬"></option>
-<option value="야스오" label="Yasuo"></option><option value="Yasuo" label="야스오"></option>
-<option value="에코" label="Ekko"></option><option value="Ekko" label="에코"></option>
-<option value="엘리스" label="Elise"></option><option value="Elise" label="엘리스"></option>
-<option value="오공" label="Wukong"></option><option value="Wukong" label="오공"></option>
-<option value="오리안나" label="Orianna"></option><option value="Orianna" label="오리안나"></option>
-<option value="올라프" label="Olaf"></option><option value="Olaf" label="올라프"></option>
-<option value="요네" label="Yone"></option><option value="Yone" label="요네"></option>
-<option value="요릭" label="Yorick"></option><option value="Yorick" label="요릭"></option>
-<option value="우디르" label="Udyr"></option><option value="Udyr" label="우디르"></option>
-<option value="우르곳" label="Urgot"></option><option value="Urgot" label="우르곳"></option>
-<option value="워윅" label="Warwick"></option><option value="Warwick" label="워윅"></option>
-<option value="유미" label="Yuumi"></option><option value="Yuumi" label="유미"></option>
-<option value="이렐리아" label="Irelia"></option><option value="Irelia" label="이렐리아"></option>
-<option value="이블린" label="Evelynn"></option><option value="Evelynn" label="이블린"></option>
-<option value="이즈리얼" label="Ezreal"></option><option value="Ezreal" label="이즈리얼"></option>
-<option value="일라오이" label="Illaoi"></option><option value="Illaoi" label="일라오이"></option>
-<option value="자르반 4세" label="Jarvan IV"></option><option value="Jarvan IV" label="자르반 4세"></option>
-<option value="자야" label="Xayah"></option><option value="Xayah" label="자야"></option>
-<option value="자크" label="Zac"></option><option value="Zac" label="자크"></option>
-<option value="잔나" label="Janna"></option><option value="Janna" label="잔나"></option>
-<option value="잭스" label="Jax"></option><option value="Jax" label="잭스"></option>
-<option value="제드" label="Zed"></option><option value="Zed" label="제드"></option>
-<option value="제라스" label="Xerath"></option><option value="Xerath" label="제라스"></option>
-<option value="제리" label="Zeri"></option><option value="Zeri" label="제리"></option>
-<option value="제이스" label="Jayce"></option><option value="Jayce" label="제이스"></option>
-<option value="조이" label="Zoe"></option><option value="Zoe" label="조이"></option>
-<option value="직스" label="Ziggs"></option><option value="Ziggs" label="직스"></option>
-<option value="진" label="Jhin"></option><option value="Jhin" label="진"></option>
-<option value="질리언" label="Zilean"></option><option value="Zilean" label="질리언"></option>
-<option value="징크스" label="Jinx"></option><option value="Jinx" label="징크스"></option>
-<option value="초가스" label="Cho'Gath"></option><option value="Cho'Gath" label="초가스"></option>
-<option value="카르마" label="Karma"></option><option value="Karma" label="카르마"></option>
-<option value="카밀" label="Camille"></option><option value="Camille" label="카밀"></option>
-<option value="카시오페아" label="Cassiopeia"></option><option value="Cassiopeia" label="카시오페아"></option>
-<option value="카이사" label="Kai'Sa"></option><option value="Kai'Sa" label="카이사"></option>
-<option value="카직스" label="Kha'Zix"></option><option value="Kha'Zix" label="카직스"></option>
-<option value="카타리나" label="Katarina"></option><option value="Katarina" label="카타리나"></option>
-<option value="칼리스타" label="Kalista"></option><option value="Kalista" label="칼리스타"></option>
-<option value="케넨" label="Kennen"></option><option value="Kennen" label="케넨"></option>
-<option value="케이틀린" label="Caitlyn"></option><option value="Caitlyn" label="케이틀린"></option>
-<option value="케일" label="Kayle"></option><option value="Kayle" label="케일"></option>
-<option value="케인" label="Kayn"></option><option value="Kayn" label="케인"></option>
-<option value="코그모" label="Kog'Maw"></option><option value="Kog'Maw" label="코그모"></option>
-<option value="코르키" label="Corki"></option><option value="Corki" label="코르키"></option>
-<option value="퀸" label="Quinn"></option><option value="Quinn" label="퀸"></option>
-<option value="클레드" label="Kled"></option><option value="Kled" label="클레드"></option>
-<option value="키아나" label="Qiyana"></option><option value="Qiyana" label="키아나"></option>
-<option value="킨드레드" label="Kindred"></option><option value="Kindred" label="킨드레드"></option>
-<option value="타릭" label="Taric"></option><option value="Taric" label="타릭"></option>
-<option value="탈리야" label="Taliyah"></option><option value="Taliyah" label="탈리야"></option>
-<option value="탈론" label="Talon"></option><option value="Talon" label="탈론"></option>
-<option value="탐 켄치" label="Tahm Kench"></option><option value="Tahm Kench" label="탐 켄치"></option>
-<option value="트런들" label="Trundle"></option><option value="Trundle" label="트런들"></option>
-<option value="트리스타나" label="Tristana"></option><option value="Tristana" label="트리스타나"></option>
-<option value="트린다미어" label="Tryndamere"></option><option value="Tryndamere" label="트린다미어"></option>
-<option value="트위스티드 페이트" label="Twisted Fate"></option><option value="Twisted Fate" label="트위스티드 페이트"></option>
-<option value="트위치" label="Twitch"></option><option value="Twitch" label="트위치"></option>
-<option value="티모" label="Teemo"></option><option value="Teemo" label="티모"></option>
-<option value="파이크" label="Pyke"></option><option value="Pyke" label="파이크"></option>
-<option value="판테온" label="Pantheon"></option><option value="Pantheon" label="판테온"></option>
-<option value="피들스틱" label="Fiddlesticks"></option><option value="Fiddlesticks" label="피들스틱"></option>
-<option value="피오라" label="Fiora"></option><option value="Fiora" label="피오라"></option>
-<option value="피즈" label="Fizz"></option><option value="Fizz" label="피즈"></option>
-<option value="하이머딩거" label="Heimerdinger"></option><option value="Heimerdinger" label="하이머딩거"></option>
-<option value="헤카림" label="Hecarim"></option><option value="Hecarim" label="헤카림"></option>
-<option value="흐웨이" label="Hwei"></option><option value="Hwei" label="흐웨이"></option>
-</datalist>
-<div id="toast"></div><script src="/app.js?v=3.3.8"></script></body></html>
+<datalist id="championOptions"></datalist>
+<div id="toast"></div><script src="/app.js?v=3.4.6"></script></body></html>

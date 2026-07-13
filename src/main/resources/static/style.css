@@ -455,3 +455,302 @@ main{width:min(1400px,92%);margin:auto;padding:42px 0 80px}.page{display:none}.p
   border-color:rgba(240,204,120,.55);
   box-shadow:0 0 0 3px rgba(240,204,120,.08);
 }
+
+
+/* v3.4.0 draft BGM controls */
+.draft-heading-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:9px;
+  flex-wrap:wrap;
+}
+.draft-volume{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:var(--muted);
+  font-size:12px;
+}
+.draft-volume input{width:90px}
+.draft-bgm-status{
+  min-width:128px;
+  color:var(--muted);
+  font-size:12px;
+}
+
+
+
+
+/* v3.4.2 champion images */
+.champion-icon{
+  width:30px;
+  height:30px;
+  flex:0 0 30px;
+  border-radius:8px;
+  object-fit:cover;
+  border:1px solid rgba(240,204,120,.28);
+  background:rgba(255,255,255,.055);
+  vertical-align:middle;
+}
+.champion-icon-empty,
+.champion-icon.image-error{
+  display:inline-block;
+  background:
+    linear-gradient(135deg,rgba(240,204,120,.13),rgba(107,127,168,.08)),
+    rgba(255,255,255,.035);
+}
+.champion-input-wrap{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.champion-input-wrap .champ{min-width:0;width:100%}
+.champion-input-icon{width:32px;height:32px;flex-basis:32px}
+.champion-inline{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  vertical-align:middle;
+}
+.champion-inline .champion-icon{width:24px;height:24px;flex-basis:24px;border-radius:6px}
+.champcard-with-image{
+  display:flex;
+  align-items:center;
+  gap:11px;
+}
+.champcard-with-image > div{min-width:0}
+.champion-card-icon{width:42px;height:42px;flex-basis:42px;border-radius:11px}
+@media(max-width:800px){
+  .champion-input-wrap{grid-column:span 2}
+  .champion-input-wrap .champ{width:100%}
+}
+
+
+/* v3.4.3 direct bid / most champion */
+.direct-bid-box{
+  display:flex;
+  width:100%;
+  gap:7px;
+}
+.direct-bid-box input{
+  min-width:0;
+  width:100%;
+}
+.candidate-most-champion{
+  margin-top:14px;
+  padding:11px 12px;
+  border:1px solid rgba(240,204,120,.22);
+  border-radius:13px;
+  background:rgba(240,204,120,.055);
+}
+.candidate-most-champion > small{
+  display:block;
+  margin-bottom:8px;
+  color:var(--muted);
+}
+.candidate-most-champion > div{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+}
+.candidate-most-champion b{font-size:14px}
+
+
+/* v3.4.4 main image / video */
+.main-media-hero{
+  position:relative;
+  min-height:620px;
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:26px;
+  background:#07111f;
+  isolation:isolate;
+}
+.main-media-poster,
+.main-media-video{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.main-media-poster{z-index:-3}
+.main-media-video{z-index:-2}
+.main-media-overlay{
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:
+    linear-gradient(90deg,rgba(4,12,25,.95) 0%,rgba(4,12,25,.77) 44%,rgba(4,12,25,.24) 100%),
+    linear-gradient(0deg,rgba(4,12,25,.7),transparent 55%);
+}
+.main-media-content{
+  max-width:690px;
+  padding:clamp(48px,8vw,110px);
+}
+.main-media-content > b{
+  display:block;
+  margin-bottom:14px;
+  color:#f0cc78;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.16em;
+}
+.main-media-content h1{
+  margin:0 0 18px;
+  font-size:clamp(42px,6vw,78px);
+  line-height:1.08;
+}
+.main-media-content p{
+  max-width:620px;
+  color:#c5d0e4;
+  font-size:16px;
+  line-height:1.8;
+}
+.main-media-actions{
+  display:flex;
+  gap:10px;
+  margin-top:28px;
+  flex-wrap:wrap;
+}
+.main-video-toggle{
+  position:absolute;
+  right:18px;
+  bottom:18px;
+  padding:9px 12px;
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:999px;
+  background:rgba(4,12,25,.7);
+  color:#fff;
+  backdrop-filter:blur(10px);
+  cursor:pointer;
+}
+@media(max-width:800px){
+  .main-media-hero{min-height:540px}
+  .main-media-content{padding:52px 28px}
+  .main-media-overlay{
+    background:linear-gradient(0deg,rgba(4,12,25,.92),rgba(4,12,25,.46));
+  }
+}
+
+
+
+
+/* v3.4.6 video hero + top-left cameo + quote */
+.main-media-hero{
+  position:relative;
+  min-height:620px;
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:26px;
+  background:
+    radial-gradient(circle at 70% 25%,rgba(27,60,104,.35),transparent 45%),
+    #07111f;
+  isolation:isolate;
+}
+.main-media-video{
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.main-media-overlay{
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:
+    linear-gradient(90deg,rgba(4,12,25,.94) 0%,rgba(4,12,25,.73) 47%,rgba(4,12,25,.25) 100%),
+    linear-gradient(0deg,rgba(4,12,25,.72),transparent 55%);
+}
+.main-cameo-image{
+  position:absolute;
+  top:18px;
+  left:18px;
+  z-index:2;
+  width:92px;
+  height:92px;
+  object-fit:cover;
+  border:2px solid rgba(240,204,120,.72);
+  border-radius:18px;
+  box-shadow:0 14px 36px rgba(0,0,0,.38);
+  background:#fff;
+}
+.main-media-content{
+  max-width:720px;
+  padding:clamp(110px,10vw,145px) clamp(42px,8vw,110px) clamp(48px,7vw,90px);
+}
+.main-media-content > b{
+  display:block;
+  margin-bottom:14px;
+  color:#f0cc78;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.16em;
+}
+.main-media-content h1{
+  margin:0 0 20px;
+  font-size:clamp(42px,6vw,78px);
+  line-height:1.08;
+}
+.main-quote{
+  margin:0 0 18px;
+  padding:13px 16px;
+  border-left:3px solid #f0cc78;
+  color:#f5df9b;
+  background:rgba(7,17,31,.42);
+  font-size:clamp(15px,1.5vw,20px);
+  font-weight:800;
+  line-height:1.55;
+}
+.main-media-content p{
+  max-width:620px;
+  color:#c5d0e4;
+  font-size:16px;
+  line-height:1.8;
+}
+.main-media-actions{
+  display:flex;
+  gap:10px;
+  margin-top:28px;
+  flex-wrap:wrap;
+}
+.main-video-toggle{
+  position:absolute;
+  right:18px;
+  bottom:18px;
+  padding:9px 12px;
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:999px;
+  background:rgba(4,12,25,.7);
+  color:#fff;
+  backdrop-filter:blur(10px);
+  cursor:pointer;
+}
+.main-video-toggle:disabled{
+  opacity:.7;
+  cursor:default;
+}
+.legacy-home-content{
+  margin-top:28px;
+}
+@media(max-width:800px){
+  .main-media-hero{min-height:560px}
+  .main-cameo-image{
+    top:14px;
+    left:14px;
+    width:72px;
+    height:72px;
+    border-radius:14px;
+  }
+  .main-media-content{
+    padding:105px 28px 58px;
+  }
+  .main-media-overlay{
+    background:linear-gradient(0deg,rgba(4,12,25,.94),rgba(4,12,25,.45));
+  }
+}

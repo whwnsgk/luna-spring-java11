@@ -1,9 +1,36 @@
-console.info("RIFT ARENA build v3.3.8 loaded");
+console.info("RIFT ARENA build v3.4.6 loaded");
 const S={members:[],selected:[],blue:[],red:[],matches:[],seasons:[],seasonId:null,activeSeasonId:null,drag:null,discord:false,auction:null};
 const POS=["TOP","JUNGLE","MID","ADC","SUPPORT","FILL"],PN={TOP:"탑",JUNGLE:"정글",MID:"미드",ADC:"원딜",SUPPORT:"서폿",FILL:"올라운더"};
-document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();positions.innerHTML=POS.map(x=>`<label><input type="checkbox" name="pos" value="${x}"> ${PN[x]}</label>`).join("");await loadSeasons();await all();await discordState();dateNow()});
-function nav(){document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>{document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.querySelectorAll(".nav-btn").forEach(n=>n.classList.toggle("active",n.dataset.page===b.dataset.page));document.getElementById(b.dataset.page).classList.add("active");window.scrollTo({top:0,behavior:"smooth"})})}
+document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();setupMainHeroVideo();positions.innerHTML=POS.map(x=>`<label><input type="checkbox" name="pos" value="${x}"> ${PN[x]}</label>`).join("");await Promise.all([loadSeasons(),loadDdragonVersion()]);await loadChampions();await all();await discordState();dateNow()});
+function nav(){document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>{document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.querySelectorAll(".nav-btn").forEach(n=>n.classList.toggle("active",n.dataset.page===b.dataset.page));document.getElementById(b.dataset.page).classList.add("active");DraftBgm.sync(b.dataset.page);window.scrollTo({top:0,behavior:"smooth"})})}
 function modals(){document.querySelectorAll(".x,.modal-cancel").forEach(x=>x.onclick=()=>x.closest(".modal").classList.remove("open"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("open")})}
+
+function setupMainHeroVideo(){
+ const video=document.getElementById("mainHeroVideo");
+ const toggle=document.getElementById("mainVideoToggle");
+ if(!video||!toggle)return;
+
+ const syncButton=()=>{
+   toggle.textContent=video.paused?"영상 재생":"영상 일시정지";
+ };
+ toggle.onclick=async()=>{
+   if(video.paused){
+     try{await video.play()}catch(e){toast("브라우저에서 영상 자동재생을 차단했습니다.");}
+   }else{
+     video.pause();
+   }
+   syncButton();
+ };
+ video.addEventListener("play",syncButton);
+ video.addEventListener("pause",syncButton);
+ video.addEventListener("error",()=>{
+   video.classList.add("hidden");
+   toggle.textContent="영상 파일 없음";
+   toggle.disabled=true;
+ });
+ syncButton();
+}
+
 function events(){
  addMember.onclick=()=>{memberForm.reset();mid.value="";puuid.value="";memberModal.classList.add("open")};
  bulkRiotRefresh.onclick=refreshAllRiotMembers;
@@ -24,13 +51,16 @@ function events(){
  auctionHammer.onclick=()=>wsAction("START");
  auctionUnsold.onclick=()=>toast("포기 버튼으로 상대에게 즉시 넘길 수 있습니다.");
  blueSurrender.onclick=()=>wsAction("SURRENDER");redSurrender.onclick=()=>wsAction("SURRENDER");
- blueAppealSend.onclick=()=>wsAction("APPEAL",{message:blueAppealInput.value});redAppealSend.onclick=()=>wsAction("APPEAL",{message:redAppealInput.value});
+ blueDirectBidSend.onclick=()=>submitDirectBid("BLUE");redDirectBidSend.onclick=()=>submitDirectBid("RED");
  soundToggle.onclick=toggleSound;
  soundVolume.oninput=e=>AuctionSound.setVolume(+e.target.value/100);
  soundTest.onclick=()=>AuctionSound.testSequence();
+ draftBgmToggle.onclick=()=>DraftBgm.toggle();
+ draftBgmVolume.oninput=e=>DraftBgm.setVolume(+e.target.value/100);
+ updateDraftBgmUi();
  bgmToggle.onclick=()=>AuctionBgm.toggle();
  bgmVolume.oninput=e=>AuctionBgm.setVolume(+e.target.value/100);
- document.addEventListener("click",()=>AuctionBgm.unlock(),{once:true});
+ document.addEventListener("pointerdown",()=>{AuctionBgm.unlock();DraftBgm.unlock()});
  updateBgmUi();
  auctionGoDraft.onclick=()=>openPage("draft");
  auctionRecordMatch.onclick=()=>openMatch(S.blue,S.red);
@@ -146,174 +176,89 @@ function openForceMatch(){
  editingMatchId.value="";forceMode.value="Y";matchModalTitle.textContent="강제 경기 기록";editMeta.classList.remove("hidden");dateNow();if(S.activeSeasonId)matchSeason.value=S.activeSeasonId;players.innerHTML=forceRows();memo.value="강제 기록";updatedBy.value="";updateReason.value="강제 기록 등록";matchModal.classList.add("open")}
 
 
-const CHAMPION_KO_TO_EN={
-"가렌":"Garen",
-"갈리오":"Galio",
-"갱플랭크":"Gangplank",
-"그라가스":"Gragas",
-"그레이브즈":"Graves",
-"그웬":"Gwen",
-"나르":"Gnar",
-"나미":"Nami",
-"나서스":"Nasus",
-"나피리":"Naafiri",
-"노틸러스":"Nautilus",
-"녹턴":"Nocturne",
-"누누와 윌럼프":"Nunu & Willump",
-"니달리":"Nidalee",
-"니코":"Neeko",
-"닐라":"Nilah",
-"다리우스":"Darius",
-"다이애나":"Diana",
-"드레이븐":"Draven",
-"라이즈":"Ryze",
-"라칸":"Rakan",
-"람머스":"Rammus",
-"럭스":"Lux",
-"럼블":"Rumble",
-"레나타 글라스크":"Renata Glasc",
-"레넥톤":"Renekton",
-"레오나":"Leona",
-"렉사이":"Rek'Sai",
-"렐":"Rell",
-"렝가":"Rengar",
-"루시안":"Lucian",
-"룰루":"Lulu",
-"르블랑":"LeBlanc",
-"리 신":"Lee Sin",
-"리븐":"Riven",
-"리산드라":"Lissandra",
-"릴리아":"Lillia",
-"마스터 이":"Master Yi",
-"마오카이":"Maokai",
-"말자하":"Malzahar",
-"말파이트":"Malphite",
-"모데카이저":"Mordekaiser",
-"모르가나":"Morgana",
-"문도 박사":"Dr. Mundo",
-"미스 포츈":"Miss Fortune",
-"밀리오":"Milio",
-"바드":"Bard",
-"바루스":"Varus",
-"바이":"Vi",
-"베이가":"Veigar",
-"베인":"Vayne",
-"벡스":"Vex",
-"벨베스":"Bel'Veth",
-"벨코즈":"Vel'Koz",
-"볼리베어":"Volibear",
-"브라움":"Braum",
-"브라이어":"Briar",
-"브랜드":"Brand",
-"블라디미르":"Vladimir",
-"블릿츠크랭크":"Blitzcrank",
-"비에고":"Viego",
-"빅토르":"Viktor",
-"뽀삐":"Poppy",
-"사미라":"Samira",
-"사이온":"Sion",
-"사일러스":"Sylas",
-"샤코":"Shaco",
-"세나":"Senna",
-"세라핀":"Seraphine",
-"세주아니":"Sejuani",
-"세트":"Sett",
-"소나":"Sona",
-"소라카":"Soraka",
-"쉔":"Shen",
-"쉬바나":"Shyvana",
-"스웨인":"Swain",
-"스카너":"Skarner",
-"시비르":"Sivir",
-"신 짜오":"Xin Zhao",
-"신드라":"Syndra",
-"신지드":"Singed",
-"쓰레쉬":"Thresh",
-"아리":"Ahri",
-"아무무":"Amumu",
-"아우렐리온 솔":"Aurelion Sol",
-"아이번":"Ivern",
-"아지르":"Azir",
-"아칼리":"Akali",
-"아크샨":"Akshan",
-"아트록스":"Aatrox",
-"아펠리오스":"Aphelios",
-"알리스타":"Alistar",
-"암베사":"Ambessa",
-"애니":"Annie",
-"애니비아":"Anivia",
-"오로라":"Aurora",
-"애쉬":"Ashe",
-"야스오":"Yasuo",
-"에코":"Ekko",
-"엘리스":"Elise",
-"오공":"Wukong",
-"오리안나":"Orianna",
-"올라프":"Olaf",
-"요네":"Yone",
-"요릭":"Yorick",
-"우디르":"Udyr",
-"우르곳":"Urgot",
-"워윅":"Warwick",
-"유미":"Yuumi",
-"이렐리아":"Irelia",
-"이블린":"Evelynn",
-"이즈리얼":"Ezreal",
-"일라오이":"Illaoi",
-"자르반 4세":"Jarvan IV",
-"자야":"Xayah",
-"자크":"Zac",
-"잔나":"Janna",
-"잭스":"Jax",
-"제드":"Zed",
-"제라스":"Xerath",
-"제리":"Zeri",
-"제이스":"Jayce",
-"조이":"Zoe",
-"직스":"Ziggs",
-"진":"Jhin",
-"질리언":"Zilean",
-"징크스":"Jinx",
-"초가스":"Cho'Gath",
-"카르마":"Karma",
-"카밀":"Camille",
-"카시오페아":"Cassiopeia",
-"카이사":"Kai'Sa",
-"카직스":"Kha'Zix",
-"카타리나":"Katarina",
-"칼리스타":"Kalista",
-"케넨":"Kennen",
-"케이틀린":"Caitlyn",
-"케일":"Kayle",
-"케인":"Kayn",
-"코그모":"Kog'Maw",
-"코르키":"Corki",
-"퀸":"Quinn",
-"클레드":"Kled",
-"키아나":"Qiyana",
-"킨드레드":"Kindred",
-"타릭":"Taric",
-"탈리야":"Taliyah",
-"탈론":"Talon",
-"탐 켄치":"Tahm Kench",
-"트런들":"Trundle",
-"트리스타나":"Tristana",
-"트린다미어":"Tryndamere",
-"트위스티드 페이트":"Twisted Fate",
-"트위치":"Twitch",
-"티모":"Teemo",
-"파이크":"Pyke",
-"판테온":"Pantheon",
-"피들스틱":"Fiddlesticks",
-"피오라":"Fiora",
-"피즈":"Fizz",
-"하이머딩거":"Heimerdinger",
-"헤카림":"Hecarim",
-"흐웨이":"Hwei"
-};
+let DDRAGON_VERSION="15.14.1";
+let CHAMPIONS=[];
+let CHAMPION_BY_INPUT=new Map();
+
+async function loadDdragonVersion(){
+ try{
+   const response=await fetch("https://ddragon.leagueoflegends.com/api/versions.json",{cache:"no-store"});
+   if(response.ok){
+     const versions=await response.json();
+     if(Array.isArray(versions)&&versions.length)DDRAGON_VERSION=versions[0];
+   }
+ }catch(e){
+   console.warn("Data Dragon 버전 조회 실패, 기본 버전을 사용합니다.",e);
+ }
+}
+
+function championData(value){
+ return CHAMPION_BY_INPUT.get(String(value||"").trim().toLowerCase())||null;
+}
+
+function championImageUrl(value){
+ const champion=championData(value);
+ if(!champion)return "";
+ return `https://ddragon.leagueoflegends.com/cdn/${encodeURIComponent(DDRAGON_VERSION)}/img/champion/${encodeURIComponent(champion.championCode)}.png`;
+}
+
+function championIcon(value,extraClass=""){
+ const url=championImageUrl(value);
+ if(!url)return `<span class="champion-icon champion-icon-empty ${extraClass}"></span>`;
+ return `<img class="champion-icon ${extraClass}" src="${url}" alt="${esc(String(value||"챔피언"))}" loading="lazy" onerror="this.classList.add('image-error');this.removeAttribute('src')">`;
+}
+
+function championLabel(value){
+ const champion=championData(value);
+ return champion?champion.nameKo||champion.nameEn||champion.championCode:String(value||"-");
+}
+
+function updateChampionPreview(input){
+ const row=input.closest(".playerrow");
+ const preview=row?.querySelector(".champion-input-icon");
+ if(!preview)return;
+ const url=championImageUrl(input.value);
+ preview.classList.toggle("champion-icon-empty",!url);
+ preview.classList.remove("image-error");
+ if(url){
+   preview.src=url;
+   preview.alt=championLabel(input.value);
+ }else{
+   preview.removeAttribute("src");
+   preview.alt="";
+ }
+}
+
+function bindChampionPreviews(container=document){
+ container.querySelectorAll(".playerrow .champ").forEach(input=>{
+   updateChampionPreview(input);
+   if(input.dataset.previewBound==="Y")return;
+   input.dataset.previewBound="Y";
+   input.addEventListener("input",()=>updateChampionPreview(input));
+   input.addEventListener("change",()=>updateChampionPreview(input));
+ });
+}
+
+
+async function loadChampions(){
+ CHAMPIONS=await api("/api/champions");
+ CHAMPION_BY_INPUT=new Map();
+ const options=[];
+ CHAMPIONS.forEach(c=>{
+   [c.championCode,c.nameEn,c.nameKo].forEach(v=>CHAMPION_BY_INPUT.set(String(v).toLowerCase(),c));
+   options.push(`<option value="${esc(c.nameKo)}" label="${esc(c.nameEn)} · ${esc(c.championCode)}"></option>`);
+   options.push(`<option value="${esc(c.nameEn)}" label="${esc(c.nameKo)} · ${esc(c.championCode)}"></option>`);
+ });
+ championOptions.innerHTML=options.join("");
+}
+
+function resolveChampionInput(value){
+ return championData(value);
+}
+
 function normalizeChampionName(value){
- const text=String(value||"").trim();
- return CHAMPION_KO_TO_EN[text]||text;
+ const c=resolveChampionInput(value);
+ return c?c.championCode:String(value||"").trim();
 }
 
 function teamRows(team,ids){
@@ -327,7 +272,7 @@ function teamRows(team,ids){
      <select class="pp">
        ${positions.map(p=>`<option value="${p}" ${p===position?"selected":""}>${p}</option>`).join("")}
      </select>
-     <input class="champ" list="championOptions" placeholder="한글 또는 영문 챔피언">
+     <span class="champion-input-wrap">${championIcon("", "champion-input-icon")}<input class="champ" list="championOptions" placeholder="한글 또는 영문 챔피언"></span>
      <input class="k" type="number" min="0" value="0" aria-label="킬">
      <input class="d" type="number" min="0" value="0" aria-label="데스">
      <input class="a" type="number" min="0" value="0" aria-label="어시스트">
@@ -336,12 +281,22 @@ function teamRows(team,ids){
  }).join("");
 }
 
-function forceRows(){return ["BLUE","RED"].map(team=>`<h3>${team}</h3>`+POS.slice(0,5).map((p,i)=>`<div class="playerrow" data-team="${team}"><select class="member-select">${S.members.map(m=>`<option value="${m.memberId}">${esc(m.realName)}</option>`).join("")}</select><select class="pp">${POS.map(x=>`<option ${x===p?'selected':''}>${x}</option>`).join("")}</select><input class="champ" list="championOptions" placeholder="한글 또는 영문 챔피언"><input class="k" type="number" value="0"><input class="d" type="number" value="0"><input class="a" type="number" value="0"><label><input class="mvp" type="checkbox">MVP</label></div>`).join("")).join("")}
+function forceRows(){return ["BLUE","RED"].map(team=>`<h3>${team}</h3>`+POS.slice(0,5).map((p,i)=>`<div class="playerrow" data-team="${team}"><select class="member-select">${S.members.map(m=>`<option value="${m.memberId}">${esc(m.realName)}</option>`).join("")}</select><select class="pp">${POS.map(x=>`<option ${x===p?'selected':''}>${x}</option>`).join("")}</select><span class="champion-input-wrap">${championIcon("", "champion-input-icon")}<input class="champ" list="championOptions" placeholder="한글 또는 영문 챔피언"></span><input class="k" type="number" value="0"><input class="d" type="number" value="0"><input class="a" type="number" value="0"><label><input class="mvp" type="checkbox">MVP</label></div>`).join("")).join("")}
 function collectMatchPlayers(){return [...document.querySelectorAll(".playerrow")].map(x=>({memberId:+(x.dataset.id||x.querySelector('.member-select')?.value),teamCode:x.dataset.team,positionCode:x.querySelector(".pp").value,championName:normalizeChampionName(x.querySelector(".champ").value),kills:+x.querySelector(".k").value,deaths:+x.querySelector(".d").value,assists:+x.querySelector(".a").value,mvpYn:x.querySelector(".mvp").checked}))}
-async function saveMatch(e){e.preventDefault();const payload={seasonId:matchSeason.value?+matchSeason.value:null,playedAt:playedAt.value,winnerTeam:winner.value,memo:memo.value,players:collectMatchPlayers(),updatedBy:updatedBy.value,updateReason:updateReason.value,forceYn:forceMode.value==='Y'};try{const id=editingMatchId.value;const url=id?`/api/matches/${id}`:(forceMode.value==='Y'?'/api/matches/force':'/api/matches');await api(url,{method:id?'PUT':'POST',body:JSON.stringify(payload)});matchModal.classList.remove("open");toast(id?"경기 기록을 수정했습니다.":"경기를 저장했습니다.");await all();document.querySelector('[data-page="matches"]').click()}catch(e){toast(e.message)}}
+async function saveMatch(e){
+ e.preventDefault();
+ const inputs=[...document.querySelectorAll(".playerrow .champ")];
+ const invalid=inputs.find(input=>!resolveChampionInput(input.value));
+ if(invalid){
+   invalid.focus();
+   toast(`'${invalid.value||"빈 값"}'은 등록된 챔피언이 아닙니다. 자동완성 목록에서 선택해주세요.`);
+   return;
+ }
+ const payload={seasonId:matchSeason.value?+matchSeason.value:null,playedAt:playedAt.value,winnerTeam:winner.value,memo:memo.value,players:collectMatchPlayers(),updatedBy:updatedBy.value,updateReason:updateReason.value,forceYn:forceMode.value==='Y'};
+ try{const id=editingMatchId.value;const url=id?`/api/matches/${id}`:(forceMode.value==='Y'?'/api/matches/force':'/api/matches');await api(url,{method:id?'PUT':'POST',body:JSON.stringify(payload)});matchModal.classList.remove("open");toast(id?"경기 기록을 수정했습니다.":"경기를 저장했습니다.");await all();document.querySelector('[data-page="matches"]').click()}catch(e){toast(e.message)}}
 async function loadMatches(){S.matches=await api("/api/matches"+qs());const mods=await api('/api/matches/recent-modified');recentModified.classList.toggle('hidden',!mods.length);recentModified.innerHTML=mods.length?`<h3>최근 수정 기록</h3>`+mods.map(m=>`<div class="modified-row" onclick="detailMatch(${m.matchId})"><span><b>#${m.matchId}</b> ${esc(m.updateReason||'수정')}</span><small>${esc(m.updatedBy||'사용자')} · ${fmt(m.updatedAt)}</small></div>`).join(''):'';matchList.innerHTML=S.matches.length?S.matches.map(m=>`<div class="item" onclick="detailMatch(${m.matchId})"><span><b>#${m.matchId} ${fmt(m.playedAt)}</b> ${m.forceYn?'<span class="force-badge">강제</span>':''} ${m.updatedAt&&m.createdAt&&new Date(m.updatedAt)>new Date(m.createdAt).getTime()+1000?'<span class="match-edit-badge">수정됨</span>':''}<p>${esc(m.seasonName||"통산")} · ${esc(m.memo||"메모 없음")}</p></span><strong>${m.winnerTeam} WIN · ${m.blueCost}:${m.redCost}</strong></div>`).join(""):`<div class="empty">경기 없음</div>`;recent.innerHTML=S.matches.slice(0,5).map(m=>`<div class="item" onclick="detailMatch(${m.matchId})"><span>${fmt(m.playedAt)}</span><b>${m.winnerTeam} WIN</b></div>`).join("")||"경기 없음"}
-let currentMatchDetail=null;window.detailMatch=async id=>{let m=await api(`/api/matches/${id}`);currentMatchDetail=m;detail.innerHTML=`<h2>#${id} ${m.winnerTeam} WIN ${m.forceYn?'<span class="force-badge">강제 기록</span>':''}</h2><p>${esc(m.seasonName||"통산")} · ${fmt(m.playedAt)} · ${esc(m.memo||"")}</p>${m.updateReason?`<div class="notice">최근 수정: ${esc(m.updateReason)} · ${esc(m.updatedBy||'사용자')} · ${fmt(m.updatedAt)}</div>`:''}`+["BLUE","RED"].map(t=>`<article><h3>${t}</h3>${m.players.filter(x=>(x.team_code||x.teamCode)===t).map(x=>`<div class="item"><b>${esc(x.realName)} ${x.mvp_yn||x.mvpYn?"👑":""}</b><span>${x.position_code||x.positionCode} · ${esc(x.champion_name||x.championName||"-")} ${x.kills}/${x.deaths}/${x.assists}</span></div>`).join("")}</article>`).join("");editMatchButton.classList.remove('hidden');detailModal.classList.add("open")};
-async function editCurrentMatch(){const m=currentMatchDetail;if(!m)return;detailModal.classList.remove('open');editingMatchId.value=m.matchId;forceMode.value='N';matchModalTitle.textContent=`경기 #${m.matchId} 수정`;editMeta.classList.remove('hidden');matchSeason.value=m.seasonId||'';playedAt.value=String(m.playedAt).slice(0,16);winner.value=m.winnerTeam;memo.value=m.memo||'';updatedBy.value='';updateReason.value='';players.innerHTML=['BLUE','RED'].map(t=>`<h3>${t}</h3>`+m.players.filter(x=>(x.team_code||x.teamCode)===t).map(x=>{const id=x.member_id||x.memberId;return `<div class="playerrow" data-id="${id}" data-team="${t}"><b>${esc(x.realName)}</b><select class="pp">${POS.map(p=>`<option ${(x.position_code||x.positionCode)===p?'selected':''}>${p}</option>`).join('')}</select><input class="champ" list="championOptions" value="${esc(x.champion_name||x.championName||'')}"><input class="k" type="number" value="${x.kills||0}"><input class="d" type="number" value="${x.deaths||0}"><input class="a" type="number" value="${x.assists||0}"><label><input class="mvp" type="checkbox" ${x.mvp_yn||x.mvpYn?'checked':''}>MVP</label></div>`}).join('')).join('');matchModal.classList.add('open')}
+let currentMatchDetail=null;window.detailMatch=async id=>{let m=await api(`/api/matches/${id}`);currentMatchDetail=m;detail.innerHTML=`<h2>#${id} ${m.winnerTeam} WIN ${m.forceYn?'<span class="force-badge">강제 기록</span>':''}</h2><p>${esc(m.seasonName||"통산")} · ${fmt(m.playedAt)} · ${esc(m.memo||"")}</p>${m.updateReason?`<div class="notice">최근 수정: ${esc(m.updateReason)} · ${esc(m.updatedBy||'사용자')} · ${fmt(m.updatedAt)}</div>`:''}`+["BLUE","RED"].map(t=>`<article><h3>${t}</h3>${m.players.filter(x=>(x.team_code||x.teamCode)===t).map(x=>`<div class="item"><b>${esc(x.realName)} ${x.mvp_yn||x.mvpYn?"👑":""}</b><span>${x.position_code||x.positionCode} · <span class="champion-inline">${championIcon(x.champion_name||x.championName||"")}<b>${esc(championLabel(x.champion_name||x.championName||"-"))}</b></span> ${x.kills}/${x.deaths}/${x.assists}</span></div>`).join("")}</article>`).join("");editMatchButton.classList.remove('hidden');detailModal.classList.add("open")};
+async function editCurrentMatch(){const m=currentMatchDetail;if(!m)return;detailModal.classList.remove('open');editingMatchId.value=m.matchId;forceMode.value='N';matchModalTitle.textContent=`경기 #${m.matchId} 수정`;editMeta.classList.remove('hidden');matchSeason.value=m.seasonId||'';playedAt.value=String(m.playedAt).slice(0,16);winner.value=m.winnerTeam;memo.value=m.memo||'';updatedBy.value='';updateReason.value='';players.innerHTML=['BLUE','RED'].map(t=>`<h3>${t}</h3>`+m.players.filter(x=>(x.team_code||x.teamCode)===t).map(x=>{const id=x.member_id||x.memberId;return `<div class="playerrow" data-id="${id}" data-team="${t}"><b>${esc(x.realName)}</b><select class="pp">${POS.map(p=>`<option ${(x.position_code||x.positionCode)===p?'selected':''}>${p}</option>`).join('')}</select><span class="champion-input-wrap">${championIcon(x.champion_name||x.championName||"", "champion-input-icon")}<input class="champ" list="championOptions" value="${esc(x.champion_name||x.championName||'')}"></span><input class="k" type="number" value="${x.kills||0}"><input class="d" type="number" value="${x.deaths||0}"><input class="a" type="number" value="${x.assists||0}"><label><input class="mvp" type="checkbox" ${x.mvp_yn||x.mvpYn?'checked':''}>MVP</label></div>`}).join('')).join('');matchModal.classList.add('open')}
 async function dashboard(){let [d,h,a]=await Promise.all([api("/api/matches/dashboard"+qs()),api("/api/members/hall-of-fame"+qs()),api("/api/matches/awards"+qs())]);let m={};d.forEach(x=>m[x.metric]=x.value);metrics.innerHTML=[["멤버",m.memberCount||0],["경기",m.matchCount||0],["블루 승",m.blueWins||0],["레드 승",m.redWins||0]].map(x=>`<div class="metric"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join("");hall.innerHTML=h.map((x,i)=>`<div class="item"><b>${i+1}. ${esc(x.real_name)}</b><strong>${x.win_rate}%</strong></div>`).join("")||"최소 3경기 후 표시";awards.innerHTML=a.length?a.map(x=>`<div class="award-card"><small>${esc(x.award_name)}</small><strong>${esc(x.real_name)}</strong><span>${awardValue(x)}</span></div>`).join(""):`<div class="empty">경기 기록이 쌓이면 시즌 어워드가 표시됩니다.</div>`}
 function awardValue(x){if(x.award_code==="WIN_RATE")return `${x.value}% · ${x.games}경기`;if(x.award_code==="SURVIVOR")return `평균 ${x.value}데스`;return `${x.value}`}
 async function ranking(){let r=await api("/api/matches/ranking"+qs());document.getElementById("ranking").innerHTML=r.map((x,i)=>`<tr><td>${i+1}</td><td><button class="member-link" onclick="memberDetailView(${x.member_id})">${esc(x.real_name)}</button><br><small>${esc(x.game_name)}#${esc(x.tag_line)}</small></td><td>${x.solo_tier||""} ${x.solo_rank||""}</td><td>${x.match_count}</td><td>${x.win_count}/${x.loss_count}</td><td>${x.win_rate}%</td><td>${x.mvp_count}</td><td>${x.avg_kills}/${x.avg_deaths}/${x.avg_assists}</td><td>${x.balance_score}</td></tr>`).join("")}
@@ -357,6 +312,99 @@ async function ranking(){let r=await api("/api/matches/ranking"+qs());document.g
    STARTING/RUNNING/SOLD -> /audio/draft-go.mp3
    COMPLETE/disconnect   -> stop
    ========================================================= */
+
+const DraftBgm=(()=>{
+ const audio=new Audio("/audio/draft-main.mp3");
+ audio.loop=true;
+ audio.preload="auto";
+
+ let volume=Number(localStorage.getItem("riftDraftBgmVolume")||0.35);
+ let enabled=localStorage.getItem("riftDraftBgmEnabled")!=="false";
+ let blocked=false;
+ let failed=false;
+ audio.volume=volume;
+
+ audio.addEventListener("canplay",()=>{
+   failed=false;
+   updateDraftBgmUi();
+ });
+ audio.addEventListener("error",()=>{
+   failed=true;
+   updateDraftBgmUi();
+ });
+
+ async function play(){
+   if(!enabled){
+     stop(false);
+     return;
+   }
+   try{
+     await audio.play();
+     blocked=false;
+     failed=false;
+   }catch(e){
+     blocked=true;
+   }
+   updateDraftBgmUi();
+ }
+
+ function stop(reset=true){
+   audio.pause();
+   if(reset)audio.currentTime=0;
+   blocked=false;
+   updateDraftBgmUi();
+ }
+
+ function sync(pageName){
+   if(pageName==="draft")play();
+   else stop();
+ }
+
+ function toggle(){
+   enabled=!enabled;
+   localStorage.setItem("riftDraftBgmEnabled",String(enabled));
+   if(enabled)sync(document.querySelector(".page.active")?.id);
+   else stop();
+   updateDraftBgmUi();
+ }
+
+ function setVolume(value){
+   volume=Math.max(0,Math.min(1,value));
+   audio.volume=volume;
+   localStorage.setItem("riftDraftBgmVolume",String(volume));
+   updateDraftBgmUi();
+ }
+
+ function unlock(){
+   if(document.querySelector(".page.active")?.id==="draft")play();
+ }
+
+ return {
+   sync,toggle,setVolume,unlock,
+   get enabled(){return enabled},
+   get volume(){return volume},
+   get blocked(){return blocked},
+   get failed(){return failed},
+   get paused(){return audio.paused}
+ };
+})();
+
+function updateDraftBgmUi(){
+ const button=document.getElementById("draftBgmToggle");
+ const slider=document.getElementById("draftBgmVolume");
+ const status=document.getElementById("draftBgmStatus");
+
+ if(button)button.textContent=DraftBgm.enabled?"내전 BGM 끄기":"내전 BGM 켜기";
+ if(slider)slider.value=Math.round(DraftBgm.volume*100);
+ if(!status)return;
+
+ if(DraftBgm.failed)status.textContent="draft-main.mp3를 찾지 못했습니다";
+ else if(!DraftBgm.enabled)status.textContent="BGM 꺼짐";
+ else if(DraftBgm.blocked)status.textContent="재생 대기 · 화면을 클릭해주세요";
+ else if(document.querySelector(".page.active")?.id==="draft"&&!DraftBgm.paused)status.textContent="내전 BGM 재생 중";
+ else status.textContent="BGM 대기";
+}
+
 const AuctionBgm=(()=>{
  const waitAudio=new Audio("/audio/draft-wait.mp3");
  const goAudio=new Audio("/audio/draft-go.mp3");
@@ -391,7 +439,7 @@ const AuctionBgm=(()=>{
 
  function sync(status){
    if(status==="WAITING")play(waitAudio);
-   else if(status==="STARTING"||status==="RUNNING"||status==="SOLD")play(goAudio);
+   else if(status==="STARTING"||status==="RUNNING"||status==="SOLD"||status==="UNSOLD")play(goAudio);
    else stop();
  }
 
@@ -439,7 +487,7 @@ function updateBgmUi(){
  if(!AuctionBgm.enabled)status.textContent="BGM 꺼짐";
  else if(AuctionBgm.blocked)status.textContent="재생 대기 · 화면을 한 번 클릭해주세요";
  else if(auctionState?.status==="WAITING")status.textContent="대기 음악 재생 중";
- else if(["STARTING","RUNNING","SOLD"].includes(auctionState?.status))status.textContent="경매 음악 재생 중";
+ else if(["STARTING","RUNNING","SOLD","UNSOLD"].includes(auctionState?.status))status.textContent="경매 음악 재생 중";
  else status.textContent="BGM 대기";
 }
 
@@ -510,7 +558,7 @@ let auctionSocket=null,auctionRole=null,auctionState=null,auctionRoom=null,lastA
 const auctionClientId=sessionStorage.getItem("riftAuctionClientId")||((window.crypto&&crypto.randomUUID)?crypto.randomUUID():`client-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 sessionStorage.setItem("riftAuctionClientId",auctionClientId);
 let auctionJoinRejected=false;
-function openPage(pageName){document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.querySelectorAll(".nav-btn").forEach(n=>n.classList.toggle("active",n.dataset.page===pageName));document.getElementById(pageName)?.classList.add("active");if(pageName==="auction")renderAuctionSetup();window.scrollTo({top:0,behavior:"smooth"})}
+function openPage(pageName){document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.querySelectorAll(".nav-btn").forEach(n=>n.classList.toggle("active",n.dataset.page===pageName));document.getElementById(pageName)?.classList.add("active");DraftBgm.sync(pageName);if(pageName==="auction")renderAuctionSetup();window.scrollTo({top:0,behavior:"smooth"})}
 function auctionMemberIds(){return [...new Set([...S.selected,...S.blue,...S.red].map(Number))]}
 function findMember(id){return S.members.find(m=>+m.memberId===+id)}
 function loadAuctionPlayersFromDraft(){const ids=auctionMemberIds();if(ids.length!==10){toast("내전 짜기에서 참가자 10명을 먼저 선택해주세요.");return}S.auction={setupMemberIds:ids,status:"SETUP"};renderAuctionSetup();toast("참가자 10명을 불러왔습니다.")}
@@ -545,7 +593,9 @@ let auctionEventTimer=null;
 function handleAuctionEvent(prev,a){
  if(!a||!a.eventSeq||a.eventSeq===lastAuctionEventSeq)return;
  lastAuctionEventSeq=a.eventSeq;
- if(a.eventType==='FIRST_BID'){
+ if(a.eventType==='OPEN_BID'){
+   showAuctionEvent(a,'turn',1700);
+ }else if(a.eventType==='FIRST_BID'){
    showAuctionEvent(a,'turn',1900);
    AuctionSound.bid(a.eventTeam||'BLUE');
  }else if(a.eventType==='TURN'){
@@ -554,6 +604,9 @@ function handleAuctionEvent(prev,a){
  }else if(a.eventType==='SOLD'){
    showAuctionEvent(a,`sold ${(a.eventTeam||'BLUE').toLowerCase()}`,2300);
    AuctionSound.sold(a.eventTeam||'BLUE');
+ }else if(a.eventType==='UNSOLD'){
+   showAuctionEvent(a,'turn',2100);
+   AuctionSound.error();
  }else if(a.eventType==='COMPLETE'){
    showAuctionComplete();
    AuctionSound.complete();
@@ -562,7 +615,7 @@ function handleAuctionEvent(prev,a){
 function showAuctionEvent(a,kind,duration){
  clearTimeout(auctionEventTimer);
  auctionEventPanel.className=`auction-event-panel ${kind||''}`;
- auctionEventKicker.textContent=a.eventType==='SOLD'?'SOLD!':a.eventType==='FIRST_BID'?'FIRST ATTACK':'NOW TURN';
+ auctionEventKicker.textContent=a.eventType==='SOLD'?'SOLD!':a.eventType==='UNSOLD'?'UNSOLD':a.eventType==='OPEN_BID'?'OPEN BID':a.eventType==='FIRST_BID'?'FIRST BID':'NOW TURN';
  auctionEventTitle.textContent=a.eventTitle||'-';
  auctionEventMessage.textContent=a.eventMessage||'';
  auctionEventOverlay.classList.remove('hidden');
@@ -575,13 +628,31 @@ function showAuctionComplete(){
  setTimeout(()=>auctionCompleteOverlay.classList.add('hidden'),4200);
 }
 
-function renderRealtimeAuction(){const a=auctionState;if(!a)return;renderAuctionStartOverlay(a);auctionSetup.classList.add('hidden');auctionStage.classList.remove('hidden');auctionComplete.classList.toggle('hidden',a.status!=='COMPLETE');liveRoomCode.textContent=a.roomCode;liveRole.textContent=roleLabel(auctionRole);liveConnections.innerHTML=`<span class="presence-item ${a.connectedDirector?'online':'waiting'}">진행자 ${a.connectedDirector?'● 접속':'○ 대기'}</span><span class="presence-item ${a.connectedBlue?'online':'waiting'}">BLUE ${esc(a.blueHostName||'-')} ${a.connectedBlue?'● 접속':'○ 대기'}</span><span class="presence-item ${a.connectedRed?'online':'waiting'}">RED ${esc(a.redHostName||'-')} ${a.connectedRed?'● 접속':'○ 대기'}</span><span class="presence-item spectator">관전자 ${a.spectatorCount||0}명</span>`;liveAuctionStart.disabled=!(auctionRole==='DIRECTOR'&&a.connectedDirector&&a.connectedBlue&&a.connectedRed&&a.status==='WAITING');liveAuctionStart.classList.toggle('hidden',auctionRole!=='DIRECTOR');blueAuctionHost.textContent=(a.blueTeam[0]?.realName)||'-';redAuctionHost.textContent=(a.redTeam[0]?.realName)||'-';blueToken.textContent=a.blueTokens;redToken.textContent=a.redTokens;blueAuctionTeam.innerHTML=serverRoster(a.blueTeam);redAuctionTeam.innerHTML=serverRoster(a.redTeam);auctionRound.textContent=`${a.round} / 8`;const c=a.current;candidateAvatar.textContent=c?(c.realName||'?').slice(0,1):'?';candidateName.textContent=c?.realName||(a.status==='WAITING'?'호스트 접속 대기':a.status==='STARTING'?'경매 시작 준비 중':'경매 완료');candidateRiotId.textContent=c?`${c.gameName||''}#${c.tagLine||''}`:'-';candidateRank.textContent=c?`${c.soloTier||'UNRANKED'} ${c.soloRank||''}`:'UNRANKED';candidateCost.textContent=c?.balanceScore||0;candidateRecord.textContent=c?`${c.recentWins||0}승 ${c.recentLosses||0}패`:'0승 0패';candidateKda.textContent=c?`${c.recentAvgKills||0}/${c.recentAvgDeaths||0}/${c.recentAvgAssists||0}`:'0/0/0';candidateLane.textContent=PN[c?.mostPosition]||c?.mostPosition||'-';blueAppealText.textContent=a.appeals?.BLUE||'-';redAppealText.textContent=a.appeals?.RED||'-';auctionCountdown.textContent=c?a.remainingSeconds:'-';currentBid.textContent=a.currentBid||0;currentBidTeam.textContent=a.bidTeam?`${a.bidTeam==='BLUE'?a.blueHostName:a.redHostName} 최고 입찰`:'기본 베팅 10원';currentBidTeam.className=a.bidTeam||'';countdownRing.classList.toggle('warning',a.remainingSeconds<=10&&a.remainingSeconds>3);countdownRing.classList.toggle('danger',a.remainingSeconds<=3&&!!c);auctionQueue.innerHTML=a.queue?.length?a.queue.map(m=>`<div class="queue-chip"><b>${esc(m.realName)}</b><small>${m.balanceScore||1000}</small></div>`).join(''):'<span class="empty">남은 후보 없음</span>';auctionLog.innerHTML=(a.logs||[]).slice().reverse().map(l=>`<div class="log-row"><span>${esc(l.time)}</span><b>${esc(l.message)}</b></div>`).join('');blueReserveInfo.textContent=`최대 입찰 ${a.blueMaxBid}원 · 남은 영입 횟수에 10원씩 자동 보존`;redReserveInfo.textContent=`최대 입찰 ${a.redMaxBid}원 · 남은 영입 횟수에 10원씩 자동 보존`;const myTurn=a.status==='RUNNING'&&a.turnTeam===auctionRole;
+function renderRealtimeAuction(){const a=auctionState;if(!a)return;renderAuctionStartOverlay(a);auctionSetup.classList.add('hidden');auctionStage.classList.remove('hidden');auctionComplete.classList.toggle('hidden',a.status!=='COMPLETE');liveRoomCode.textContent=a.roomCode;liveRole.textContent=roleLabel(auctionRole);liveConnections.innerHTML=`<span class="presence-item ${a.connectedDirector?'online':'waiting'}">진행자 ${a.connectedDirector?'● 접속':'○ 대기'}</span><span class="presence-item ${a.connectedBlue?'online':'waiting'}">BLUE ${esc(a.blueHostName||'-')} ${a.connectedBlue?'● 접속':'○ 대기'}</span><span class="presence-item ${a.connectedRed?'online':'waiting'}">RED ${esc(a.redHostName||'-')} ${a.connectedRed?'● 접속':'○ 대기'}</span><span class="presence-item spectator">관전자 ${a.spectatorCount||0}명</span>`;liveAuctionStart.disabled=!(auctionRole==='DIRECTOR'&&a.connectedDirector&&a.connectedBlue&&a.connectedRed&&a.status==='WAITING');liveAuctionStart.classList.toggle('hidden',auctionRole!=='DIRECTOR');blueAuctionHost.textContent=(a.blueTeam[0]?.realName)||'-';redAuctionHost.textContent=(a.redTeam[0]?.realName)||'-';blueToken.textContent=a.blueTokens;redToken.textContent=a.redTokens;blueAuctionTeam.innerHTML=serverRoster(a.blueTeam);redAuctionTeam.innerHTML=serverRoster(a.redTeam);auctionRound.textContent=`${a.round} / 8`;const c=a.current;candidateAvatar.textContent=c?(c.realName||'?').slice(0,1):'?';candidateName.textContent=c?.realName||(a.status==='WAITING'?'호스트 접속 대기':a.status==='STARTING'?'경매 시작 준비 중':'경매 완료');candidateRiotId.textContent=c?`${c.gameName||''}#${c.tagLine||''}`:'-';candidateRank.textContent=c?`${c.soloTier||'UNRANKED'} ${c.soloRank||''}`:'UNRANKED';candidateCost.textContent=c?.balanceScore||0;candidateRecord.textContent=c?`${c.recentWins||0}승 ${c.recentLosses||0}패`:'0승 0패';candidateKda.textContent=c?`${c.recentAvgKills||0}/${c.recentAvgDeaths||0}/${c.recentAvgAssists||0}`:'0/0/0';candidateLane.textContent=PN[c?.mostPosition]||c?.mostPosition||'-';
+ const mostChampion=c?.inhouseMostChampion||'';
+ candidateMostChampion.textContent=mostChampion?championLabel(mostChampion):'기록 없음';
+ const mostUrl=championImageUrl(mostChampion);
+ candidateMostChampionImage.classList.toggle('champion-icon-empty',!mostUrl);
+ if(mostUrl){candidateMostChampionImage.src=mostUrl;candidateMostChampionImage.alt=championLabel(mostChampion)}
+ else{candidateMostChampionImage.removeAttribute('src');candidateMostChampionImage.alt=''}
+ auctionCountdown.textContent=c?a.remainingSeconds:'-';currentBid.textContent=a.currentBid||0;currentBidTeam.textContent=a.bidTeam?`${a.bidTeam==='BLUE'?a.blueHostName:a.redHostName} 최고 입찰`:(a.openingBid?'30초 자유 첫 입찰':'입찰 대기');currentBidTeam.className=a.bidTeam||'';countdownRing.classList.toggle('warning',a.remainingSeconds<=10&&a.remainingSeconds>3);countdownRing.classList.toggle('danger',a.remainingSeconds<=3&&!!c);auctionQueue.innerHTML=a.queue?.length?a.queue.map(m=>`<div class="queue-chip"><b>${esc(m.realName)}</b><small>${m.balanceScore||1000}</small></div>`).join(''):'<span class="empty">남은 후보 없음</span>';auctionLog.innerHTML=(a.logs||[]).slice().reverse().map(l=>`<div class="log-row"><span>${esc(l.time)}</span><b>${esc(l.message)}</b></div>`).join('');blueReserveInfo.textContent=`최대 입찰 ${a.blueMaxBid}원 · 남은 영입 횟수에 10원씩 자동 보존`;redReserveInfo.textContent=`최대 입찰 ${a.redMaxBid}원 · 남은 영입 횟수에 10원씩 자동 보존`;const myTurn=a.status==='RUNNING'&&a.turnTeam===auctionRole;
  auctionTurnBanner.classList.toggle('hidden',!c||!a.turnTeam);
  auctionTurnName.textContent=a.turnHostName?`${a.turnHostName}님의 TURN`:'-';
  auctionTurnBanner.className=`auction-turn-banner ${a.turnTeam?a.turnTeam.toLowerCase():''} ${(!c||!a.turnTeam)?'hidden':''}`;
- document.querySelectorAll('.bid-btn').forEach(b=>{b.disabled=!c||auctionRole!==b.dataset.team||a.turnTeam!==b.dataset.team||a.status!=='RUNNING'});
- blueSurrender.disabled=!c||auctionRole!=='BLUE'||a.turnTeam!=='BLUE'||a.surrendered!=null||a.status!=='RUNNING';
- redSurrender.disabled=!c||auctionRole!=='RED'||a.turnTeam!=='RED'||a.surrendered!=null||a.status!=='RUNNING';blueAppealSend.disabled=auctionRole!=='BLUE'||!c;redAppealSend.disabled=auctionRole!=='RED'||!c;if(a.status==='COMPLETE'){S.blue=a.blueTeam.map(x=>+x.memberId);S.red=a.redTeam.map(x=>+x.memberId);S.selected=[];drawDraft();report()}}
+ const canBlueBid=!!c&&a.status==='RUNNING'&&auctionRole==='BLUE'&&(a.openingBid||a.turnTeam==='BLUE')&&!(a.passedTeams||[]).includes('BLUE');
+ const canRedBid=!!c&&a.status==='RUNNING'&&auctionRole==='RED'&&(a.openingBid||a.turnTeam==='RED')&&!(a.passedTeams||[]).includes('RED');
+ document.querySelectorAll('.bid-btn').forEach(b=>{b.disabled=b.dataset.team==='BLUE'?!canBlueBid:!canRedBid});
+ blueDirectBid.disabled=!canBlueBid;blueDirectBidSend.disabled=!canBlueBid;
+ redDirectBid.disabled=!canRedBid;redDirectBidSend.disabled=!canRedBid;
+ blueSurrender.disabled=!c||auctionRole!=='BLUE'||a.status!=='RUNNING'||(!a.openingBid&&a.turnTeam!=='BLUE')||(a.passedTeams||[]).includes('BLUE');
+ redSurrender.disabled=!c||auctionRole!=='RED'||a.status!=='RUNNING'||(!a.openingBid&&a.turnTeam!=='RED')||(a.passedTeams||[]).includes('RED');
+ if(a.openingBid){
+   currentBidTeam.textContent='30초 자유 첫 입찰 · 먼저 입력한 팀부터 시작';
+   auctionMessage.textContent='양 팀 누구나 직접 금액을 입력할 수 있습니다. 무입찰 또는 양 팀 포기 시 유찰됩니다.';
+ }else if(c){
+   auctionMessage.textContent=a.turnHostName?`${a.turnHostName}님의 입찰 차례입니다.`:'입찰 진행 중';
+ }
+ if(a.status==='COMPLETE'){S.blue=a.blueTeam.map(x=>+x.memberId);S.red=a.redTeam.map(x=>+x.memberId);S.selected=[];drawDraft();report()}}
 
 let auctionStartFxPlayedForRoom=null;
 function renderAuctionStartOverlay(a){
@@ -605,7 +676,23 @@ function renderAuctionStartOverlay(a){
 }
 
 function serverRoster(team){return (team||[]).map(x=>`<div class="auction-roster-card ${x.host?'host':''}"><div><b>${esc(x.realName)}</b><small>${x.host?'HOST':`${x.price}원`}</small></div><span class="sold-price">${x.balanceScore||0}</span></div>`).join('')+Array.from({length:Math.max(0,5-(team||[]).length)},()=>'<div class="auction-roster-card"><small>빈 슬롯</small></div>').join('')}
-function placeAuctionBid(team,add){wsAction('BID',{amount:add==='unit'?10:+add})}function startAuctionCountdown(){wsAction('START')}function passCurrentCandidate(){toast('실시간 경매에서는 유찰 대신 포기 버튼을 사용합니다.')}function resetAuction(){if(auctionSocket)auctionSocket.close();auctionSocket=null;auctionState=null;auctionRoom=null;auctionRole=null;auctionSetup.classList.remove('hidden');auctionStage.classList.add('hidden');auctionComplete.classList.add('hidden');renderAuctionSetup()}
+function placeAuctionBid(team,add){
+ const current=Number(auctionState?.currentBid||0);
+ const amount=current+(add==='unit'?10:Number(add||0));
+ wsAction('BID',{amount});
+}
+function submitDirectBid(team){
+ const input=team==='BLUE'?blueDirectBid:redDirectBid;
+ const amount=Number(input.value);
+ if(!Number.isFinite(amount)||amount<10){toast('10원 이상의 입찰 금액을 입력해주세요.');input.focus();return}
+ if(auctionState&&!auctionState.openingBid&&amount<Number(auctionState.currentBid||0)+10){
+   toast(`현재 입찰가보다 최소 10원 높은 ${Number(auctionState.currentBid||0)+10}원 이상을 입력해주세요.`);
+   input.focus();
+   return;
+ }
+ wsAction('BID',{amount});
+ input.value='';
+}function startAuctionCountdown(){wsAction('START')}function passCurrentCandidate(){toast('실시간 경매에서는 유찰 대신 포기 버튼을 사용합니다.')}function resetAuction(){if(auctionSocket)auctionSocket.close();auctionSocket=null;auctionState=null;auctionRoom=null;auctionRole=null;auctionSetup.classList.remove('hidden');auctionStage.classList.add('hidden');auctionComplete.classList.add('hidden');renderAuctionSetup()}
 function toggleSound(){AuctionSound.toggle();updateSoundButton()}function updateSoundButton(){if(!window.soundToggle)return;soundToggle.textContent=AuctionSound.muted?'효과음 켜기':'음소거';soundIcon.textContent=AuctionSound.muted?'🔇':'🔊'}
 
 let globalLoadingCount=0;
@@ -652,8 +739,8 @@ function toast(x){let t=document.getElementById("toast");t.textContent=x;t.class
 window.riotRefresh=async (id,button)=>{let oldText=button?button.textContent:"";try{if(button){button.disabled=true;button.textContent="갱신 중..."}toast("Riot API에서 최근 20경기를 수집 중입니다...");await api(`/api/members/${id}/riot-refresh`,{method:"POST"});toast("Riot 정보를 갱신했습니다.");await all();await memberDetailView(id)}catch(e){toast(e.message)}finally{if(button){button.disabled=false;button.textContent=oldText}}};
 window.memberDetailView=async id=>{try{let m=await api(`/api/members/${id}${qs()}`),syn=m.synergy||[],riv=m.rivalry||[],best=syn[0],worst=syn.length?syn[syn.length-1]:null,easy=riv[0],hard=riv.length?riv[riv.length-1]:null,sum=m.inhouseSummary||{};let icon=m.profileIconId?`https://ddragon.leagueoflegends.com/cdn/15.14.1/img/profileicon/${m.profileIconId}.png`:"";memberDetail.dataset.memberId=id;memberDetail.innerHTML=`<div class="memberhero">${icon?`<img class="profileicon" src="${icon}" alt="프로필">`:`<div class="profileicon"></div>`}<div><h2>${esc(m.realName)}</h2><p>${esc(m.gameName)}#${esc(m.tagLine)} · Lv.${m.summonerLevel||"-"}</p><p>${m.soloTier||"UNRANKED"} ${m.soloRank||""} ${m.soloLp||0}LP · 최근 갱신 ${m.riotUpdatedAt?fmt(m.riotUpdatedAt):"없음"}</p></div><button class="btn btn-riot api-refresh" onclick="riotRefresh(${id},this)">Riot 정보 갱신</button></div><h3>솔랭 최근 통계</h3><div class="statgrid"><div class="statbox"><small>최근 20판</small><strong>${m.recentWins||0}승 ${m.recentLosses||0}패</strong></div><div class="statbox"><small>솔랭 승률</small><strong>${m.recentWinRate||0}%</strong></div><div class="statbox"><small>평균 K/D/A</small><strong>${m.recentAvgKills||0}/${m.recentAvgDeaths||0}/${m.recentAvgAssists||0}</strong></div><div class="statbox"><small>모스트 라인</small><strong>${PN[m.mostPosition]||m.mostPosition||"-"}</strong></div></div><h3>내전 상세 통계</h3><div class="statgrid five"><div class="statbox"><small>경기</small><strong>${sum.match_count||0}</strong></div><div class="statbox"><small>승 / 패</small><strong>${sum.win_count||0} / ${sum.loss_count||0}</strong></div><div class="statbox"><small>승률</small><strong>${sum.win_rate||0}%</strong></div><div class="statbox"><small>MVP</small><strong>${sum.mvp_count||0}</strong></div><div class="statbox"><small>최고 연승</small><strong>${sum.best_win_streak||0}</strong></div></div><p class="kda-line">내전 평균 K/D/A <b>${sum.avg_kills||0}/${sum.avg_deaths||0}/${sum.avg_assists||0}</b></p><h3>솔랭 최근 모스트 챔피언</h3><div class="champgrid">${champCards(m.soloChampions)}</div><h3>내전 모스트 챔피언</h3><div class="champgrid">${champCards(m.inhouseChampions)}</div><h3>내전 궁합과 상대 전적</h3><div class="synergygrid four">${relationCard("최고의 궁합",best,"good")}${relationCard("최악의 궁합",worst,"bad")}${relationCard("가장 강한 상대",easy,"good")}${relationCard("가장 어려운 상대",hard,"bad")}</div><h3>최근 내전 5경기</h3><div class="recent-member-matches">${recentMatchCards(m.recentMatches)}</div>`;memberDetailModal.classList.add("open")}catch(e){toast(e.message)}};
 function relationCard(title,x,css){return x?`<div class="syn-card ${css}"><b>${title}</b><p>${esc(x.real_name)} · ${x.games}경기 ${x.wins}승 · ${x.win_rate}%</p></div>`:`<div class="syn-card"><b>${title}</b><p>기록 부족</p></div>`}
-function recentMatchCards(xs){return xs&&xs.length?xs.map(x=>`<div class="recent-member-row ${x.win_yn?"win":"lose"}"><b>${x.win_yn?"승리":"패배"}</b><span>${fmt(x.played_at)} · ${x.season_name||"통산"}</span><span>${x.position_code||"-"} · ${esc(x.champion_name||"-")} ${x.kills}/${x.deaths}/${x.assists}${x.mvp_yn?" 👑":""}</span></div>`).join(""):`<div class="empty">아직 내전 기록이 없습니다.</div>`}
-function champCards(xs){return (xs&&xs.length)?xs.map((x,i)=>`<div class="champcard"><b>${i+1}. ${esc(x.champion_name)}</b><p>${x.games}경기 · ${x.wins}승 · ${x.win_rate||0}%</p></div>`).join(""):`<div class="champcard">아직 기록이 없습니다.</div>`}
+function recentMatchCards(xs){return xs&&xs.length?xs.map(x=>`<div class="recent-member-row ${x.win_yn?"win":"lose"}"><b>${x.win_yn?"승리":"패배"}</b><span>${fmt(x.played_at)} · ${x.season_name||"통산"}</span><span>${x.position_code||"-"} · <span class="champion-inline">${championIcon(x.champion_name||"")}<b>${esc(championLabel(x.champion_name||"-"))}</b></span> ${x.kills}/${x.deaths}/${x.assists}${x.mvp_yn?" 👑":""}</span></div>`).join(""):`<div class="empty">아직 내전 기록이 없습니다.</div>`}
+function champCards(xs){return (xs&&xs.length)?xs.map((x,i)=>`<div class="champcard champcard-with-image">${championIcon(x.champion_name||"","champion-card-icon")}<div><b>${i+1}. ${esc(championLabel(x.champion_name))}</b><p>${x.games}경기 · ${x.wins}승 · ${x.win_rate||0}%</p></div></div>`).join(""):`<div class="champcard">아직 기록이 없습니다.</div>`}
 function discordText(){let line=(title,ids)=>`${title}\n`+ids.map((id,i)=>`${["TOP","JUNGLE","MID","ADC","SUPPORT"][i]} ${S.members.find(x=>x.memberId===id).realName}`).join("\n");let season=S.seasons.find(x=>+x.seasonId===S.activeSeasonId);return `[오늘의 롤 내전${season?` · ${season.seasonName}`:""}]\n\n${line("🔵 블루팀",S.blue)}\n\n${line("🔴 레드팀",S.red)}\n\n예상 승률 ${bwin.textContent} : ${rwin.textContent}`}
 async function copyDiscord(){if(S.blue.length!==5||S.red.length!==5)return;try{await navigator.clipboard.writeText(discordText());toast("Discord용 팀 구성을 복사했습니다.")}catch(e){toast("클립보드 복사에 실패했습니다.")}}
 async function discordState(){try{let x=await api("/api/discord/status");S.discord=!!x.configured;discordStatus.textContent=S.discord?"Webhook 연결됨":"Webhook 미설정 · 복사 기능 사용 가능";drawDraft()}catch(e){discordStatus.textContent="Webhook 상태 확인 실패"}}

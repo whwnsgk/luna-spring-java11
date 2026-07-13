@@ -48,6 +48,8 @@ public class MemberService {
    c.put("memberId",id);
    mapper.insertChampionStat(c);
   }
+
+  recalculateBalanceScore(id);
   return detail(id,null);
  }
 
@@ -94,6 +96,68 @@ public class MemberService {
   d.put("inhouseSummary",summary==null?Collections.emptyMap():summary);
   return d;
  }
+ public void recalculateBalanceScores(Collection<Long> memberIds){
+  if(memberIds==null)return;
+  for(Long id:new LinkedHashSet<>(memberIds))if(id!=null)recalculateBalanceScore(id);
+ }
+
+ @Transactional public int recalculateBalanceScore(Long id){
+  Map<String,Object> member=find(id);
+  Map<String,Object> summary=mapper.inhouseSummary(id,null);
+  List<Map<String,Object>> topChampions=mapper.championStats(id);
+
+  int rankBase=rankScore(
+    textValue(member,"soloTier","solo_tier"),
+    textValue(member,"soloRank","solo_rank"),
+    intValue(member,"soloLp","solo_lp")
+  );
+
+  double recentWinRate=doubleValue(member,"recentWinRate","recent_win_rate");
+  double kills=doubleValue(member,"recentAvgKills","recent_avg_kills");
+  double deaths=doubleValue(member,"recentAvgDeaths","recent_avg_deaths");
+  double assists=doubleValue(member,"recentAvgAssists","recent_avg_assists");
+  double kda=(kills+assists)/Math.max(1.0,deaths);
+
+  int inhouseGames=intValue(summary,"matchCount","match_count");
+  double inhouseWinRate=doubleValue(summary,"winRate","win_rate");
+  int mvpCount=intValue(summary,"mvpCount","mvp_count");
+
+  int recentWinAdj=(int)Math.round(clamp((recentWinRate-50.0)*4.0,-120,120));
+  int kdaAdj=(int)Math.round(clamp((kda-2.5)*45.0,-100,150));
+
+  int championAdj=0;
+  if(topChampions!=null&&!topChampions.isEmpty()){
+   Map<String,Object> top=topChampions.get(0);
+   int games=intValue(top,"games");
+   double winRate=doubleValue(top,"winRate","win_rate");
+   double confidence=Math.min(1.0,games/10.0);
+   championAdj=(int)Math.round(
+     clamp((winRate-50.0)*1.2*confidence+Math.min(games,10)*3.0,-60,90)
+   );
+  }
+
+  double inhouseConfidence=Math.min(1.0,inhouseGames/20.0);
+  int inhouseWinAdj=(int)Math.round(
+    clamp((inhouseWinRate-50.0)*3.0*inhouseConfidence,-150,150)
+  );
+  int gamesAdj=Math.min(inhouseGames,50)*2;
+  int mvpAdj=Math.min(mvpCount,10)*12;
+
+  int score=(int)Math.round(clamp(
+    rankBase
+      +recentWinAdj
+      +kdaAdj
+      +championAdj
+      +inhouseWinAdj
+      +gamesAdj
+      +mvpAdj,
+    600,2400
+  ));
+
+  mapper.updateBalanceScore(id,score);
+  return score;
+ }
+
  @Transactional public void delete(Long id){find(id);mapper.deactivate(id);}
  private int rankScore(String tier,String rank,int lp){Map<String,Integer> t=new HashMap<>();String[] n={"UNRANKED","IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER","GRANDMASTER","CHALLENGER"};int[]v={800,700,850,1000,1150,1300,1450,1600,1800,1950,2100};for(int i=0;i<n.length;i++)t.put(n[i],v[i]);Map<String,Integer>r=new HashMap<>();r.put("IV",0);r.put("III",35);r.put("II",70);r.put("I",105);return t.getOrDefault(tier,800)+r.getOrDefault(rank,0)+Math.max(0,Math.min(lp,100));}
  private String trim(Object o){return o==null?"":String.valueOf(o).trim();}
@@ -122,6 +186,27 @@ public class MemberService {
     .replace("\uFEFF","")
     .replaceAll("\\s+","")
     .toUpperCase(Locale.ROOT);
+ }
+ private String textValue(Map<String,Object> map,String...keys){
+  Object value=firstValue(map,keys);
+  return value==null?"":String.valueOf(value);
+ }
+ private int intValue(Map<String,Object> map,String...keys){
+  if(map==null)return 0;
+  Object value=firstValue(map,keys);
+  if(value instanceof Number)return ((Number)value).intValue();
+  try{return value==null?0:Integer.parseInt(String.valueOf(value));}
+  catch(Exception e){return 0;}
+ }
+ private double doubleValue(Map<String,Object> map,String...keys){
+  if(map==null)return 0.0;
+  Object value=firstValue(map,keys);
+  if(value instanceof Number)return ((Number)value).doubleValue();
+  try{return value==null?0.0:Double.parseDouble(String.valueOf(value));}
+  catch(Exception e){return 0.0;}
+ }
+ private double clamp(double value,double min,double max){
+  return Math.max(min,Math.min(max,value));
  }
  private String safeMessage(Exception e){
   Throwable t=e;

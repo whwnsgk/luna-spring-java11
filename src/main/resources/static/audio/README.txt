@@ -14,3 +14,6 @@ src/main/resources/static/audio/draft-go.mp3
 - 파일명은 정확히 맞춰주세요.
 - 대소문자도 그대로 사용하는 편이 안전합니다.
 - MP3 파일을 넣은 뒤 git status에서 파일이 표시되는지 확인하세요.
+
+3. draft-main.mp3
+   - 내전 짜기 페이지에서 반복 재생

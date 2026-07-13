@@ -57,38 +57,75 @@ public class AuctionService{
  public void action(String code,String role,Map<String,Object>p){Room r=room(code);String a=String.valueOf(p.get("action")).toUpperCase();synchronized(r){if(a.equals("START")){needRole(role,"DIRECTOR");if(!connected(r,"DIRECTOR"))throw new IllegalStateException("진행자가 접속 중이어야 합니다.");if(!connected(r,"BLUE")||!connected(r,"RED"))throw new IllegalStateException("블루와 레드 호스트가 모두 접속해야 시작할 수 있습니다.");if(!r.status.equals("WAITING"))return;r.status="STARTING";r.startDeadline=Instant.now().plusSeconds(4);log(r,"SYSTEM","진행자가 경매 시작을 선언했습니다.");broadcast(r);}
  else if(a.equals("BID")){host(role);bid(r,role,intv(p.get("amount"),10));}
  else if(a.equals("SURRENDER")){host(role);surrender(r,role);}
- else if(a.equals("APPEAL")){host(role);String msg=String.valueOf(p.getOrDefault("message","")).trim();if(msg.length()>80)msg=msg.substring(0,80);r.appeals.put(role,msg);log(r,role,"어필: "+msg);broadcast(r);}
  else if(a.equals("SYNC"))broadcast(r);}}
- private void bid(Room r,String role,int add){
+ private void bid(Room r,String role,int amount){
   ensureRunning(r);
   if(r.currentId==null)throw new IllegalStateException("현재 매물이 없습니다.");
-  if(!role.equals(r.turnTeam))throw new IllegalStateException(hostName(r,r.turnTeam)+"님의 입찰 차례입니다.");
-  List<Pick>team=role.equals("BLUE")?r.blueTeam:r.redTeam;
+
+  List<Pick> team=role.equals("BLUE")?r.blueTeam:r.redTeam;
   int token=role.equals("BLUE")?r.blueTokens:r.redTokens;
   if(team.size()>=5)throw new IllegalStateException("이미 팀 구성이 완료됐습니다.");
-  int next=r.currentBid+Math.max(10,add);
+
+  int desired=Math.max(10,amount);
   int reserve=Math.max(0,5-team.size()-1)*10;
   int max=Math.max(0,token-reserve);
-  if(next>max)throw new IllegalStateException("남은 "+(5-team.size()-1)+"회 기본 베팅용 "+reserve+"원을 남겨야 합니다. 최대 "+max+"원까지 가능합니다.");
-  r.currentBid=next;r.bidTeam=role;r.turnTeam=opponent(role);r.deadline=Instant.now().plusSeconds(60);r.surrendered=null;
-  event(r,"TURN",r.turnTeam,hostName(r,r.turnTeam)+"님의 TURN",name(r,r.currentId)+" · 현재 "+next+"원",name(r,r.currentId),next);
-  log(r,role,next+"원 입찰 → "+hostName(r,r.turnTeam)+" 차례");
+  if(desired>max)throw new IllegalStateException("남은 "+(5-team.size()-1)+"회 기본 베팅용 "+reserve+"원을 남겨야 합니다. 최대 "+max+"원까지 가능합니다.");
+
+  if(r.openingBid){
+   if(r.passedTeams.contains(role))throw new IllegalStateException("이미 이번 매물을 포기했습니다.");
+   if(r.currentBid>0)throw new IllegalStateException("이미 첫 입찰이 시작됐습니다.");
+   r.currentBid=desired;
+   r.bidTeam=role;
+   r.turnTeam=opponent(role);
+   r.openingBid=false;
+   r.passedTeams.clear();
+   r.deadline=Instant.now().plusSeconds(60);
+   event(r,"FIRST_BID",role,hostName(r,role)+" 첫 입찰!",name(r,r.currentId)+" · "+desired+"원",name(r,r.currentId),desired);
+   log(r,role,desired+"원 첫 입찰 → "+hostName(r,r.turnTeam)+" 차례");
+   broadcast(r);
+   return;
+  }
+
+  if(!role.equals(r.turnTeam))throw new IllegalStateException(hostName(r,r.turnTeam)+"님의 입찰 차례입니다.");
+  if(desired<r.currentBid+10)throw new IllegalStateException("현재 입찰가보다 최소 10원 높은 금액을 입력해주세요.");
+
+  r.currentBid=desired;
+  r.bidTeam=role;
+  r.turnTeam=opponent(role);
+  r.deadline=Instant.now().plusSeconds(60);
+  r.surrendered=null;
+  event(r,"TURN",r.turnTeam,hostName(r,r.turnTeam)+"님의 TURN",name(r,r.currentId)+" · 현재 "+desired+"원",name(r,r.currentId),desired);
+  log(r,role,desired+"원 입찰 → "+hostName(r,r.turnTeam)+" 차례");
   broadcast(r);
  }
  private void surrender(Room r,String role){
   ensureRunning(r);
   if(r.currentId==null)throw new IllegalStateException("현재 매물이 없습니다.");
+
+  if(r.openingBid){
+   if(!r.passedTeams.add(role))throw new IllegalStateException("이미 포기했습니다.");
+   log(r,role,"첫 입찰 포기");
+   if(r.passedTeams.contains("BLUE")&&r.passedTeams.contains("RED")){
+    unsold(r,"양 팀 모두 포기");
+   }else{
+    broadcast(r);
+   }
+   return;
+  }
+
   if(!role.equals(r.turnTeam))throw new IllegalStateException("현재 포기할 수 있는 차례가 아닙니다.");
-  if(r.surrendered!=null)throw new IllegalStateException("이미 포기 처리 중입니다.");
+  if(r.bidTeam==null){unsold(r,"입찰 없이 포기");return;}
+
   String winner=r.bidTeam;
-  if(winner==null)winner=opponent(role);
-  List<Pick>winTeam=winner.equals("BLUE")?r.blueTeam:r.redTeam;
+  List<Pick> winTeam=winner.equals("BLUE")?r.blueTeam:r.redTeam;
   if(winTeam.size()>=5)throw new IllegalStateException("상대 팀은 더 이상 선수를 받을 수 없습니다.");
   r.surrendered=role;
+
   int price=Math.max(10,r.currentBid);
   int token=winner.equals("BLUE")?r.blueTokens:r.redTokens;
   int reserve=Math.max(0,5-winTeam.size()-1)*10;
   if(price>token-reserve)price=Math.max(10,token-reserve);
+
   log(r,role,"경매 포기 → "+hostName(r,winner)+" 즉시 낙찰");
   settle(r,winner,price);
  }
@@ -100,26 +137,71 @@ public class AuctionService{
   }else if(r.status.equals("RUNNING")&&r.currentId!=null&&r.deadline!=null){
    long sec=Duration.between(Instant.now(),r.deadline).getSeconds();
    if(sec<0){
-    String winner=r.bidTeam!=null?r.bidTeam:opponent(r.turnTeam);
-    log(r,r.turnTeam,hostName(r,r.turnTeam)+" 시간 초과");
-    settle(r,winner,Math.max(10,r.currentBid));
+    if(r.openingBid&&r.bidTeam==null){
+     unsold(r,"첫 30초 동안 입찰 없음");
+    }else{
+     String winner=r.bidTeam;
+     if(winner==null)unsold(r,"입찰자 없음");
+     else{
+      log(r,r.turnTeam==null?"SYSTEM":r.turnTeam,"입찰 시간 종료");
+      settle(r,winner,Math.max(10,r.currentBid));
+     }
+    }
    }else broadcast(r);
   }
  }}catch(Exception e){}}
  private void next(Room r){
   if(r.blueTeam.size()>=5||r.redTeam.size()>=5){autoAssign(r);return;}
   if(r.queue.isEmpty()){finish(r);return;}
-  r.status="RUNNING";r.currentId=r.queue.remove(0);r.surrendered=null;r.appeals.clear();r.round++;
-  List<String>eligible=new ArrayList<>();
+
+  r.status="RUNNING";
+  r.currentId=r.queue.remove(0);
+  r.surrendered=null;
+  r.passedTeams.clear();
+  r.round++;
+
+  List<String> eligible=new ArrayList<>();
   if(r.blueTeam.size()<5&&maxBid(r,"BLUE")>=10)eligible.add("BLUE");
   if(r.redTeam.size()<5&&maxBid(r,"RED")>=10)eligible.add("RED");
   if(eligible.isEmpty()){finish(r);return;}
-  String first=eligible.get(ThreadLocalRandom.current().nextInt(eligible.size()));
-  r.currentBid=10;r.bidTeam=first;r.turnTeam=opponent(first);r.deadline=Instant.now().plusSeconds(60);
-  event(r,"FIRST_BID",first,hostName(r,first)+" 선공!",name(r,r.currentId)+"에게 기본금액 10원 자동 입찰",name(r,r.currentId),10);
-  log(r,"SYSTEM",name(r,r.currentId)+" 매물 등장 · "+hostName(r,first)+" 선공 10원 자동 입찰");
+
+  r.currentBid=0;
+  r.bidTeam=null;
+  r.turnTeam=null;
+  r.openingBid=true;
+  r.deadline=Instant.now().plusSeconds(30);
+
+  event(r,"OPEN_BID","SYSTEM","첫 입찰 30초",name(r,r.currentId)+" · 양 팀 누구나 먼저 금액을 입력할 수 있습니다.",name(r,r.currentId),0);
+  log(r,"SYSTEM",name(r,r.currentId)+" 매물 등장 · 30초 자유 첫 입찰");
   broadcast(r);
  }
+ private void unsold(Room r,String reason){
+  Long id=r.currentId;
+  if(id==null)return;
+
+  String item=name(r,id);
+  r.queue.add(id);
+  r.status="UNSOLD";
+  r.deadline=null;
+  r.turnTeam=null;
+  r.bidTeam=null;
+  r.currentBid=0;
+  r.openingBid=false;
+  r.passedTeams.clear();
+
+  log(r,"SYSTEM",item+" 유찰 · 대기열 맨 뒤로 이동 ("+reason+")");
+  event(r,"UNSOLD","SYSTEM","유찰",item+" · 대기열 맨 뒤로 이동",item,0);
+  broadcast(r);
+  r.currentId=null;
+
+  timer.schedule(()->{synchronized(r){
+   if(r.status.equals("UNSOLD")){
+    r.status="RUNNING";
+    next(r);
+   }
+  }},2200,TimeUnit.MILLISECONDS);
+ }
+
  private void settle(Room r,String team,int price){
   Long id=r.currentId;if(id==null)return;
   if(team.equals("BLUE")){r.blueTokens-=price;r.blueTeam.add(new Pick(id,price,false));}
@@ -138,7 +220,7 @@ public class AuctionService{
  private void autoAssign(Room r){List<Long>left=new ArrayList<>();if(r.currentId!=null)left.add(r.currentId);left.addAll(r.queue);r.currentId=null;r.queue.clear();for(Long id:left){String t=r.blueTeam.size()>=5?"RED":r.redTeam.size()>=5?"BLUE":chooseAuto(r);if(t.equals("BLUE"))r.blueTeam.add(new Pick(id,10,false));else r.redTeam.add(new Pick(id,10,false));log(r,"SYSTEM",name(r,id)+" 자동 배정 → "+t);}finish(r);}
  private void finish(Room r){r.status="COMPLETE";r.deadline=null;r.turnTeam=null;event(r,"COMPLETE","SYSTEM","경매 종료!","최종 팀 구성이 완료되었습니다.",null,0);log(r,"SYSTEM","경매 완료");broadcast(r);}
  public Map<String,Object> state(String code){Room r=room(code);synchronized(r){return stateMap(r);}}
- private Map<String,Object> stateMap(Room r){Map<String,Object>m=new LinkedHashMap<>();m.put("roomCode",r.code);m.put("status",r.status);m.put("blueHostId",r.blueHostId);m.put("redHostId",r.redHostId);m.put("blueTokens",r.blueTokens);m.put("redTokens",r.redTokens);m.put("blueTeam",picks(r,r.blueTeam));m.put("redTeam",picks(r,r.redTeam));m.put("queue",memberList(r,r.queue));m.put("current",r.currentId==null?null:r.members.get(r.currentId));m.put("currentBid",r.currentBid);m.put("bidTeam",r.bidTeam);m.put("turnTeam",r.turnTeam);m.put("turnHostName",r.turnTeam==null?null:hostName(r,r.turnTeam));m.put("round",r.round);m.put("remainingSeconds",r.deadline==null?0:Math.max(0,Duration.between(Instant.now(),r.deadline).getSeconds()+1));m.put("connectedDirector",connected(r,"DIRECTOR"));m.put("connectedBlue",connected(r,"BLUE"));m.put("connectedRed",connected(r,"RED"));m.put("directorName","진행자");m.put("blueHostName",hostName(r,"BLUE"));m.put("redHostName",hostName(r,"RED"));m.put("spectatorCount",spectatorCount(r));m.put("startRemainingSeconds",r.startDeadline==null?0:Math.max(0,Duration.between(Instant.now(),r.startDeadline).getSeconds()+1));m.put("presenceText","진행자 "+(connected(r,"DIRECTOR")?"접속":"대기")+" · BLUE "+hostName(r,"BLUE")+" "+(connected(r,"BLUE")?"접속":"대기")+" · RED "+hostName(r,"RED")+" "+(connected(r,"RED")?"접속":"대기")+" · 관전자 "+spectatorCount(r)+"명");m.put("appeals",r.appeals);m.put("logs",r.logs);m.put("surrendered",r.surrendered);m.put("minimumBid",10);m.put("blueMaxBid",maxBid(r,"BLUE"));m.put("redMaxBid",maxBid(r,"RED"));m.put("eventSeq",r.eventSeq);m.put("eventType",r.eventType);m.put("eventTeam",r.eventTeam);m.put("eventTitle",r.eventTitle);m.put("eventMessage",r.eventMessage);m.put("eventMemberName",r.eventMemberName);m.put("eventPrice",r.eventPrice);return m;}
+ private Map<String,Object> stateMap(Room r){Map<String,Object>m=new LinkedHashMap<>();m.put("roomCode",r.code);m.put("status",r.status);m.put("blueHostId",r.blueHostId);m.put("redHostId",r.redHostId);m.put("blueTokens",r.blueTokens);m.put("redTokens",r.redTokens);m.put("blueTeam",picks(r,r.blueTeam));m.put("redTeam",picks(r,r.redTeam));m.put("queue",memberList(r,r.queue));m.put("current",r.currentId==null?null:r.members.get(r.currentId));m.put("currentBid",r.currentBid);m.put("bidTeam",r.bidTeam);m.put("turnTeam",r.turnTeam);m.put("turnHostName",r.turnTeam==null?null:hostName(r,r.turnTeam));m.put("round",r.round);m.put("remainingSeconds",r.deadline==null?0:Math.max(0,Duration.between(Instant.now(),r.deadline).getSeconds()+1));m.put("connectedDirector",connected(r,"DIRECTOR"));m.put("connectedBlue",connected(r,"BLUE"));m.put("connectedRed",connected(r,"RED"));m.put("directorName","진행자");m.put("blueHostName",hostName(r,"BLUE"));m.put("redHostName",hostName(r,"RED"));m.put("spectatorCount",spectatorCount(r));m.put("startRemainingSeconds",r.startDeadline==null?0:Math.max(0,Duration.between(Instant.now(),r.startDeadline).getSeconds()+1));m.put("presenceText","진행자 "+(connected(r,"DIRECTOR")?"접속":"대기")+" · BLUE "+hostName(r,"BLUE")+" "+(connected(r,"BLUE")?"접속":"대기")+" · RED "+hostName(r,"RED")+" "+(connected(r,"RED")?"접속":"대기")+" · 관전자 "+spectatorCount(r)+"명");m.put("logs",r.logs);m.put("surrendered",r.surrendered);m.put("openingBid",r.openingBid);m.put("passedTeams",new ArrayList<>(r.passedTeams));m.put("minimumBid",10);m.put("blueMaxBid",maxBid(r,"BLUE"));m.put("redMaxBid",maxBid(r,"RED"));m.put("eventSeq",r.eventSeq);m.put("eventType",r.eventType);m.put("eventTeam",r.eventTeam);m.put("eventTitle",r.eventTitle);m.put("eventMessage",r.eventMessage);m.put("eventMemberName",r.eventMemberName);m.put("eventPrice",r.eventPrice);return m;}
  private List<Map<String,Object>>picks(Room r,List<Pick>ps){List<Map<String,Object>>o=new ArrayList<>();for(Pick p:ps){Map<String,Object>x=new LinkedHashMap<>(r.members.get(p.memberId));x.put("price",p.price);x.put("host",p.host);o.add(x);}return o;}
  private List<Map<String,Object>>memberList(Room r,List<Long>ids){List<Map<String,Object>>o=new ArrayList<>();for(Long id:ids)o.add(r.members.get(id));return o;}
  private int maxBid(Room r,String team){List<Pick>t=team.equals("BLUE")?r.blueTeam:r.redTeam;int tok=team.equals("BLUE")?r.blueTokens:r.redTokens;return Math.max(0,tok-Math.max(0,5-t.size()-1)*10);}
@@ -159,5 +241,5 @@ public class AuctionService{
  private Room room(String c){Room r=rooms.get(norm(c));if(r==null)throw new IllegalArgumentException("경매방을 찾을 수 없습니다.");return r;}private String norm(String s){return s==null?"":s.trim().toUpperCase();}private String code(){String chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";Random x=new Random();StringBuilder b=new StringBuilder();do{b.setLength(0);for(int i=0;i<6;i++)b.append(chars.charAt(x.nextInt(chars.length())));}while(rooms.containsKey(b.toString()));return b.toString();}
  private int score(Room r,Long id){Object x=r.members.get(id).get("balanceScore");return x instanceof Number?((Number)x).intValue():1000;}private String name(Room r,Long id){return String.valueOf(r.members.get(id).get("realName"));}private Long num(Object x){return x instanceof Number?((Number)x).longValue():null;}private int intv(Object x,int d){return x instanceof Number?((Number)x).intValue():d;}private double doublev(Object x,double d){return x instanceof Number?((Number)x).doubleValue():d;}private void log(Room r,String team,String msg){Map<String,Object>x=new LinkedHashMap<>();x.put("team",team);x.put("message",msg);x.put("time",LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));r.logs.add(x);if(r.logs.size()>100)r.logs.remove(0);}
  static class Pick{Long memberId;int price;boolean host;Pick(Long i,int p,boolean h){memberId=i;price=p;host=h;}}
- static class Room{String code,status="WAITING";Long blueHostId,redHostId,currentId;int blueTokens,redTokens,round,currentBid,eventPrice;long eventSeq;String bidTeam,turnTeam,surrendered,eventType,eventTeam,eventTitle,eventMessage,eventMemberName;Instant deadline,startDeadline;Map<Long,Map<String,Object>>members=new LinkedHashMap<>();List<Long>queue=new ArrayList<>();List<Pick>blueTeam=new ArrayList<>(),redTeam=new ArrayList<>();Map<String,WebSocketSession>sessions=new LinkedHashMap<>();Map<String,String>roleClientIds=new HashMap<>();Map<String,String>spectatorKeys=new HashMap<>();Map<String,String>appeals=new HashMap<>();List<Map<String,Object>>logs=new ArrayList<>();Room(String c,Long b,Long r,int base,int rate){code=c;blueHostId=b;redHostId=r;}}
+ static class Room{String code,status="WAITING";Long blueHostId,redHostId,currentId;int blueTokens,redTokens,round,currentBid,eventPrice;long eventSeq;String bidTeam,turnTeam,surrendered,eventType,eventTeam,eventTitle,eventMessage,eventMemberName;boolean openingBid;Instant deadline,startDeadline;Map<Long,Map<String,Object>>members=new LinkedHashMap<>();List<Long>queue=new ArrayList<>();List<Pick>blueTeam=new ArrayList<>(),redTeam=new ArrayList<>();Map<String,WebSocketSession>sessions=new LinkedHashMap<>();Map<String,String>roleClientIds=new HashMap<>();Map<String,String>spectatorKeys=new HashMap<>();Set<String>passedTeams=new HashSet<>();List<Map<String,Object>>logs=new ArrayList<>();Room(String c,Long b,Long r,int base,int rate){code=c;blueHostId=b;redHostId=r;}}
 }

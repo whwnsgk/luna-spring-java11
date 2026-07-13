@@ -10,7 +10,7 @@ public interface MemberMapper {
  int deletePositions(Long memberId); int insertPosition(@Param("memberId")Long memberId,@Param("positionCode")String positionCode,@Param("priorityNo")int priorityNo);
  List<Map<String,Object>> byIds(@Param("ids") List<Long> ids);
  List<Map<String,Object>> hallOfFame(@Param("seasonId") Long seasonId);
- int updateRiotProfile(Map<String,Object> p); int insertRiotSnapshot(Map<String,Object> p);
+ int updateRiotProfile(Map<String,Object> p); int updateBalanceScore(@Param("memberId") Long memberId,@Param("balanceScore") int balanceScore); int insertRiotSnapshot(Map<String,Object> p);
  int deleteChampionStats(Long memberId); int insertChampionStat(Map<String,Object> p);
  List<Map<String,Object>> championStats(Long memberId);
  List<Map<String,Object>> inhouseChampionStats(@Param("memberId") Long memberId,@Param("seasonId") Long seasonId);

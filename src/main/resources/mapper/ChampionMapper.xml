@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.riftarena.champion.ChampionMapper">
+ <select id="list" resultType="map">
+  SELECT champion_code "championCode",name_en "nameEn",name_ko "nameKo"
+    FROM champion
+   WHERE active_yn=true
+   ORDER BY name_ko
+ </select>
+ <select id="resolve" resultType="map">
+  SELECT champion_code "championCode",name_en "nameEn",name_ko "nameKo"
+    FROM champion
+   WHERE active_yn=true
+     AND (
+       LOWER(champion_code)=LOWER(#{value})
+       OR LOWER(name_en)=LOWER(#{value})
+       OR name_ko=#{value}
+     )
+   LIMIT 1
+ </select>
+</mapper>
