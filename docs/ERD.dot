@@ -1,0 +1,11 @@
+digraph ERD {
+ rankdir=LR; graph [bgcolor="white",pad="0.3"]; node [shape=record,fontname="Arial",style="rounded,filled",fillcolor="#eef3fb",color="#395574"];
+ member [label="{MEMBER|PK member_id|Riot / 솔랭 / 코스트}"];
+ pos [label="{MEMBER_POSITION|PK/FK member_id|position_code}"];
+ season [label="{SEASON|PK season_id|season_name|active_yn}",fillcolor="#fff3d8"];
+ match [label="{INHOUSE_MATCH|PK match_id|FK season_id|winner / cost}",fillcolor="#e9e3fa"];
+ player [label="{INHOUSE_MATCH_PLAYER|PK match_player_id|FK match_id / member_id|team / champion / KDA}",fillcolor="#fde9ed"];
+ snap [label="{MEMBER_RIOT_SNAPSHOT|PK snapshot_id|FK member_id|최근 솔랭 스냅샷}"];
+ champ [label="{MEMBER_CHAMPION_STAT|PK stat id|FK member_id|최근 모스트 챔피언}"];
+ member -> pos [label="1:N"]; member -> player [label="1:N"]; season -> match [label="1:N"]; match -> player [label="1:10"]; member -> snap [label="1:N"]; member -> champ [label="1:N"];
+}

@@ -46,7 +46,19 @@ public class RiotApiService {
             if("RANKED_SOLO_5x5".equals(str(entry.get("queueType")))){ solo=entry; break; }
         }
 
-        List<String> matchIds=getStringList(matchBaseUrl+"/lol/match/v5/matches/by-puuid/"+enc(puuid)+"/ids?queue=420&start=0&count="+recentMatchCount);
+        // 솔로랭크가 있으면 솔랭 최근 전적을 사용합니다.
+        // 솔로랭크가 없으면 일반 소환사의 협곡 전적(드래프트/일반/스위프트/빠른 대전)으로 대체합니다.
+        List<String> matchIds;
+        String recentMatchScope;
+        if(solo!=null){
+            matchIds=getStringList(matchBaseUrl+"/lol/match/v5/matches/by-puuid/"+enc(puuid)
+                    +"/ids?queue=420&start=0&count="+recentMatchCount);
+            recentMatchScope="RANKED_SOLO";
+        }else{
+            matchIds=getNormalMatchIds(puuid);
+            recentMatchScope="NORMAL";
+        }
+
         List<Map<String,Object>> matches=new ArrayList<>();
         for(String matchId:matchIds){
             try{ matches.add(getMap(matchBaseUrl+"/lol/match/v5/matches/"+enc(matchId))); }
@@ -95,8 +107,42 @@ public class RiotApiService {
         result.put("soloTier",solo==null?"UNRANKED":solo.get("tier")); result.put("soloRank",solo==null?null:solo.get("rank")); result.put("soloLp",solo==null?0:solo.get("leaguePoints"));
         result.put("recentWins",wins); result.put("recentLosses",losses); result.put("recentWinRate",games==0?0.0:round(wins*100.0/games));
         result.put("recentAvgKills",games==0?0.0:round(kills*1.0/games)); result.put("recentAvgDeaths",games==0?0.0:round(deaths*1.0/games)); result.put("recentAvgAssists",games==0?0.0:round(assists*1.0/games));
-        result.put("mostPosition",mostPosition); result.put("champions",champions); result.put("collectedAt",LocalDateTime.now().toString());
+        result.put("mostPosition",mostPosition); result.put("champions",champions);
+        result.put("recentMatchScope",recentMatchScope);
+        result.put("collectedAt",LocalDateTime.now().toString());
         return result;
+    }
+
+    private List<String> getNormalMatchIds(String puuid){
+        // Riot 공식 Queue ID:
+        // 400 Draft Pick, 430 Blind Pick, 480 Swiftplay, 490 Normal Quickplay
+        int[] normalQueues={400,430,480,490};
+        Set<String> uniqueIds=new LinkedHashSet<>();
+        for(int queueId:normalQueues){
+            String url=matchBaseUrl+"/lol/match/v5/matches/by-puuid/"+enc(puuid)
+                    +"/ids?queue="+queueId+"&start=0&count="+recentMatchCount;
+            try{
+                uniqueIds.addAll(getStringList(url));
+            }catch(RuntimeException e){
+                System.err.println("[Riot API] 일반게임 목록 조회 실패 - queueId="+queueId
+                        +", message="+e.getMessage());
+            }
+        }
+
+        List<String> sorted=new ArrayList<>(uniqueIds);
+        sorted.sort((a,b)->Long.compare(matchSequence(b),matchSequence(a)));
+        if(sorted.size()>recentMatchCount){
+            return new ArrayList<>(sorted.subList(0,recentMatchCount));
+        }
+        return sorted;
+    }
+
+    private long matchSequence(String matchId){
+        if(matchId==null) return 0L;
+        int idx=matchId.lastIndexOf('_');
+        String number=idx>=0?matchId.substring(idx+1):matchId;
+        try{return Long.parseLong(number);}
+        catch(NumberFormatException e){return 0L;}
     }
 
     private void requireKey(){ if(!configured()) throw new IllegalStateException("RIOT_API_KEY가 없습니다. Riot Developer Portal에서 키를 발급한 뒤 환경변수로 등록해주세요."); }

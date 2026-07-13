@@ -1,11 +1,106 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.riftarena.match.MatchMapper">
- <insert id="insertMatch" parameterType="map" useGeneratedKeys="true" keyProperty="matchId" keyColumn="match_id">INSERT INTO inhouse_match(played_at,winner_team,memo,blue_cost,red_cost) VALUES(#{playedAt},#{winnerTeam},#{memo},#{blueCost},#{redCost})</insert>
+ <select id="activeSeasonId" resultType="long">SELECT season_id FROM season WHERE active_yn=true ORDER BY season_id DESC LIMIT 1</select>
+ <insert id="insertMatch" parameterType="map" useGeneratedKeys="true" keyProperty="matchId" keyColumn="match_id">INSERT INTO inhouse_match(season_id,played_at,winner_team,memo,blue_cost,red_cost) VALUES(#{seasonId},#{playedAt,jdbcType=TIMESTAMP},#{winnerTeam},#{memo},#{blueCost},#{redCost})</insert>
  <insert id="insertPlayer" parameterType="map">INSERT INTO inhouse_match_player(match_id,member_id,team_code,position_code,champion_name,kills,deaths,assists,win_yn,mvp_yn) VALUES(#{matchId},#{memberId},#{teamCode},#{positionCode},#{championName},COALESCE(#{kills},0),COALESCE(#{deaths},0),COALESCE(#{assists},0),#{winYn},COALESCE(#{mvpYn},false))</insert>
- <select id="list" resultType="map">SELECT match_id "matchId",played_at "playedAt",winner_team "winnerTeam",memo,blue_cost "blueCost",red_cost "redCost" FROM inhouse_match ORDER BY played_at DESC,match_id DESC LIMIT 100</select>
- <select id="find" resultType="map">SELECT match_id "matchId",played_at "playedAt",winner_team "winnerTeam",memo,blue_cost "blueCost",red_cost "redCost" FROM inhouse_match WHERE match_id=#{id}</select>
- <select id="players" resultType="map">SELECT mp.*,m.real_name "realName",m.game_name "gameName",m.tag_line "tagLine" FROM inhouse_match_player mp JOIN member m ON m.member_id=mp.member_id WHERE match_id=#{id} ORDER BY team_code,position_code</select>
- <select id="dashboard" resultType="map">SELECT 'memberCount' metric,COUNT(*) value FROM member WHERE active_yn=true UNION ALL SELECT 'matchCount',COUNT(*) FROM inhouse_match UNION ALL SELECT 'blueWins',COUNT(*) FILTER(WHERE winner_team='BLUE') FROM inhouse_match UNION ALL SELECT 'redWins',COUNT(*) FILTER(WHERE winner_team='RED') FROM inhouse_match</select>
- <select id="ranking" resultType="map">SELECT m.real_name,m.game_name,m.tag_line,m.solo_tier,m.solo_rank,m.balance_score,COUNT(mp.match_player_id) match_count,COUNT(mp.match_player_id) FILTER(WHERE mp.win_yn) win_count,COUNT(mp.match_player_id) FILTER(WHERE NOT mp.win_yn) loss_count,COALESCE(ROUND(COUNT(mp.match_player_id) FILTER(WHERE mp.win_yn)*100.0/NULLIF(COUNT(mp.match_player_id),0),1),0) win_rate,COUNT(mp.match_player_id) FILTER(WHERE mp.mvp_yn) mvp_count,COALESCE(ROUND(AVG(mp.kills),1),0) avg_kills,COALESCE(ROUND(AVG(mp.deaths),1),0) avg_deaths,COALESCE(ROUND(AVG(mp.assists),1),0) avg_assists FROM member m LEFT JOIN inhouse_match_player mp ON mp.member_id=m.member_id WHERE m.active_yn=true GROUP BY m.member_id ORDER BY win_rate DESC,match_count DESC,m.real_name</select>
+ <select id="list" resultType="map">SELECT im.match_id "matchId",im.season_id "seasonId",s.season_name "seasonName",im.played_at "playedAt",im.winner_team "winnerTeam",im.memo,im.blue_cost "blueCost",im.red_cost "redCost" FROM inhouse_match im LEFT JOIN season s ON s.season_id=im.season_id <if test="seasonId!=null">WHERE im.season_id=#{seasonId}</if> ORDER BY im.played_at DESC,im.match_id DESC LIMIT 100</select>
+ <select id="find" resultType="map">SELECT im.match_id "matchId",im.season_id "seasonId",s.season_name "seasonName",im.played_at "playedAt",im.winner_team "winnerTeam",im.memo,im.blue_cost "blueCost",im.red_cost "redCost" FROM inhouse_match im LEFT JOIN season s ON s.season_id=im.season_id WHERE im.match_id=#{id}</select>
+ <select id="players" resultType="map">SELECT mp.*,m.real_name "realName",m.game_name "gameName",m.tag_line "tagLine" FROM inhouse_match_player mp JOIN member m ON m.member_id=mp.member_id WHERE match_id=#{id} ORDER BY CASE team_code WHEN 'BLUE' THEN 1 ELSE 2 END,CASE position_code WHEN 'TOP' THEN 1 WHEN 'JUNGLE' THEN 2 WHEN 'MID' THEN 3 WHEN 'ADC' THEN 4 WHEN 'SUPPORT' THEN 5 ELSE 6 END</select>
+ <select id="dashboard" resultType="map">SELECT 'memberCount' metric,COUNT(*) value FROM member WHERE active_yn=true UNION ALL SELECT 'matchCount',COUNT(*) FROM inhouse_match <if test="seasonId!=null">WHERE season_id=#{seasonId}</if> UNION ALL SELECT 'blueWins',COUNT(*) FILTER(WHERE winner_team='BLUE') FROM inhouse_match <if test="seasonId!=null">WHERE season_id=#{seasonId}</if> UNION ALL SELECT 'redWins',COUNT(*) FILTER(WHERE winner_team='RED') FROM inhouse_match <if test="seasonId!=null">WHERE season_id=#{seasonId}</if></select>
+ <select id="ranking" resultType="map">SELECT m.member_id,m.real_name,m.game_name,m.tag_line,m.solo_tier,m.solo_rank,m.balance_score,COUNT(mp.match_player_id) match_count,COUNT(mp.match_player_id) FILTER(WHERE mp.win_yn) win_count,COUNT(mp.match_player_id) FILTER(WHERE NOT mp.win_yn) loss_count,COALESCE(ROUND(COUNT(mp.match_player_id) FILTER(WHERE mp.win_yn)*100.0/NULLIF(COUNT(mp.match_player_id),0),1),0) win_rate,COUNT(mp.match_player_id) FILTER(WHERE mp.mvp_yn) mvp_count,COALESCE(ROUND(AVG(mp.kills),1),0) avg_kills,COALESCE(ROUND(AVG(mp.deaths),1),0) avg_deaths,COALESCE(ROUND(AVG(mp.assists),1),0) avg_assists FROM member m LEFT JOIN inhouse_match_player mp ON mp.member_id=m.member_id LEFT JOIN inhouse_match im ON im.match_id=mp.match_id <if test="seasonId!=null">AND im.season_id=#{seasonId}</if> WHERE m.active_yn=true GROUP BY m.member_id ORDER BY win_rate DESC,match_count DESC,m.real_name</select>
+ <select id="awards" resultType="map">
+  WITH stat AS (
+    SELECT m.member_id,
+           m.real_name,
+           COUNT(mp.match_player_id) AS games,
+           COUNT(mp.match_player_id) FILTER (WHERE mp.win_yn) AS wins,
+           COUNT(mp.match_player_id) FILTER (WHERE mp.mvp_yn) AS mvps,
+           COALESCE(SUM(mp.kills),0) AS kills,
+           COALESCE(SUM(mp.assists),0) AS assists,
+           COALESCE(ROUND(AVG(mp.deaths),2),0) AS avg_deaths,
+           COALESCE(
+             ROUND(
+               COUNT(mp.match_player_id) FILTER (WHERE mp.win_yn)
+               * 100.0 / NULLIF(COUNT(mp.match_player_id),0), 1
+             ), 0
+           ) AS win_rate
+      FROM member m
+      LEFT JOIN inhouse_match_player mp
+        ON mp.member_id=m.member_id
+      LEFT JOIN inhouse_match im
+        ON im.match_id=mp.match_id
+      <if test="seasonId!=null">AND im.season_id=#{seasonId}</if>
+     WHERE m.active_yn=true
+     GROUP BY m.member_id
+  ),
+  win_rate_award AS (
+    SELECT 'WIN_RATE' AS award_code,
+           '승률왕' AS award_name,
+           s.real_name,
+           s.win_rate::numeric AS value,
+           s.games
+      FROM stat s
+     WHERE s.games &gt;= 3
+     ORDER BY s.win_rate DESC, s.games DESC, s.real_name
+     LIMIT 1
+  ),
+  most_games_award AS (
+    SELECT 'MOST_GAMES' AS award_code,
+           '최다 출전' AS award_name,
+           s.real_name,
+           s.games::numeric AS value,
+           s.games
+      FROM stat s
+     ORDER BY s.games DESC, s.real_name
+     LIMIT 1
+  ),
+  mvp_award AS (
+    SELECT 'MVP' AS award_code,
+           'MVP 왕' AS award_name,
+           s.real_name,
+           s.mvps::numeric AS value,
+           s.games
+      FROM stat s
+     ORDER BY s.mvps DESC, s.games DESC, s.real_name
+     LIMIT 1
+  ),
+  kills_award AS (
+    SELECT 'KILLS' AS award_code,
+           '킬 머신' AS award_name,
+           s.real_name,
+           s.kills::numeric AS value,
+           s.games
+      FROM stat s
+     ORDER BY s.kills DESC, s.games DESC, s.real_name
+     LIMIT 1
+  ),
+  assists_award AS (
+    SELECT 'ASSISTS' AS award_code,
+           '어시스트 왕' AS award_name,
+           s.real_name,
+           s.assists::numeric AS value,
+           s.games
+      FROM stat s
+     ORDER BY s.assists DESC, s.games DESC, s.real_name
+     LIMIT 1
+  ),
+  survivor_award AS (
+    SELECT 'SURVIVOR' AS award_code,
+           '생존왕' AS award_name,
+           s.real_name,
+           s.avg_deaths::numeric AS value,
+           s.games
+      FROM stat s
+     WHERE s.games &gt;= 3
+     ORDER BY s.avg_deaths ASC, s.games DESC, s.real_name
+     LIMIT 1
+  )
+  SELECT * FROM win_rate_award
+  UNION ALL SELECT * FROM most_games_award
+  UNION ALL SELECT * FROM mvp_award
+  UNION ALL SELECT * FROM kills_award
+  UNION ALL SELECT * FROM assists_award
+  UNION ALL SELECT * FROM survivor_award
+ </select>
 </mapper>

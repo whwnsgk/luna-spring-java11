@@ -1,12 +1,27 @@
-# 2차 추가 테이블/컬럼
+# v2.2 테이블 명세 요약
 
-## MEMBER 추가 컬럼
-- `summoner_id`, `summoner_level`: KR 플랫폼 API 식별정보
-- `recent_win_rate`, `recent_avg_kills/deaths/assists`: 최근 솔랭 20경기 집계
-- `most_position`: 최근 솔랭 최다 포지션
+## MEMBER
+멤버, Riot 계정, 솔랭 최근 통계, 밸런스 코스트를 저장합니다.
+
+## MEMBER_POSITION
+멤버의 선호 포지션 1~3개를 저장합니다.
+
+## SEASON
+| 컬럼 | 설명 |
+|---|---|
+| season_id | 시즌 PK |
+| season_name | 시즌 이름 |
+| start_date / end_date | 시즌 기간 |
+| active_yn | 현재 경기 등록 기본 시즌 여부 |
+
+## INHOUSE_MATCH
+경기 일시, 시즌, 승리팀, 양 팀 코스트와 메모를 저장합니다.
+
+## INHOUSE_MATCH_PLAYER
+경기별 10명의 팀·라인·챔피언·K/D/A·승패·MVP를 저장합니다.
 
 ## MEMBER_RIOT_SNAPSHOT
-Riot 정보 갱신 시점별 티어와 최근 경기 요약을 보존합니다.
+Riot 갱신 시점별 솔랭 통계를 보관합니다.
 
 ## MEMBER_CHAMPION_STAT
-현재는 `SOLO_RECENT` 범위의 모스트 챔피언 3개를 저장합니다. 내전 모스트는 경기 원장에서 실시간 집계합니다.
+최근 솔랭 모스트 챔피언 3개를 보관합니다.
