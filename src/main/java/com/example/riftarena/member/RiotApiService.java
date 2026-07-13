@@ -27,6 +27,9 @@ public class RiotApiService {
 
     public Map<String,Object> lookupAccount(String gameName,String tagLine){
         requireKey();
+        gameName=normalizeGameName(gameName);
+        tagLine=normalizeTagLine(tagLine);
+        if(gameName.isEmpty()||tagLine.isEmpty()) throw new IllegalArgumentException("Riot ID를 확인해주세요.");
         String url=accountBaseUrl+"/riot/account/v1/accounts/by-riot-id/"+enc(gameName)+"/"+enc(tagLine);
         return getMap(url);
     }
@@ -145,12 +148,47 @@ public class RiotApiService {
         catch(NumberFormatException e){return 0L;}
     }
 
+    private String normalizeGameName(String value){
+        if(value==null) return "";
+        // 예: "이세계 펭구"의 가운데 공백은 삭제하면 안 됩니다.
+        return value.replace('\u00A0',' ')
+                .replace("\u200B","")
+                .replace("\uFEFF","")
+                .trim();
+    }
+
+    private String normalizeTagLine(String value){
+        if(value==null) return "";
+        return value.replace("\u00A0","")
+                .replace("\u200B","")
+                .replace("\uFEFF","")
+                .replaceAll("\\s+","")
+                .toUpperCase(Locale.ROOT);
+    }
+
     private void requireKey(){ if(!configured()) throw new IllegalStateException("RIOT_API_KEY가 없습니다. Riot Developer Portal에서 키를 발급한 뒤 환경변수로 등록해주세요."); }
     private HttpHeaders headers(){ HttpHeaders h=new HttpHeaders(); h.set("X-Riot-Token",apiKey); return h; }
-    @SuppressWarnings("unchecked") private Map<String,Object> getMap(String url){ try{return rest.exchange(URI.create(url),HttpMethod.GET,new HttpEntity<Void>(headers()),Map.class).getBody();}catch(HttpClientErrorException.NotFound e){throw new IllegalArgumentException("Riot ID 또는 전적 정보를 찾지 못했습니다.");}catch(HttpClientErrorException.Unauthorized|HttpClientErrorException.Forbidden e){throw new IllegalStateException("Riot API 키가 만료되었거나 권한이 없습니다.");}catch(HttpClientErrorException.TooManyRequests e){throw new IllegalStateException("Riot API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요.");} }
+    @SuppressWarnings("unchecked") private Map<String,Object> getMap(String url){
+        try{
+            return rest.exchange(URI.create(url),HttpMethod.GET,new HttpEntity<Void>(headers()),Map.class).getBody();
+        }catch(HttpClientErrorException.BadRequest e){
+            throw new IllegalArgumentException("Riot API가 Riot ID 형식을 거부했습니다. 게임 이름의 내부 공백은 유지하고, 태그만 공백 없이 입력해주세요.");
+        }catch(HttpClientErrorException.NotFound e){
+            throw new IllegalArgumentException("Riot ID 또는 전적 정보를 찾지 못했습니다.");
+        }catch(HttpClientErrorException.Unauthorized|HttpClientErrorException.Forbidden e){
+            throw new IllegalStateException("Riot API 키가 만료되었거나 권한이 없습니다.");
+        }catch(HttpClientErrorException.TooManyRequests e){
+            throw new IllegalStateException("Riot API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요.");
+        }
+    }
     @SuppressWarnings("unchecked") private List<Map<String,Object>> getList(String url){ try{List<?> raw=rest.exchange(URI.create(url),HttpMethod.GET,new HttpEntity<Void>(headers()),List.class).getBody(); return raw==null?Collections.emptyList():(List<Map<String,Object>>)(List<?>)raw;}catch(HttpClientErrorException e){throw new IllegalStateException("Riot 랭크 조회에 실패했습니다: "+e.getStatusCode());} }
     @SuppressWarnings("unchecked") private List<String> getStringList(String url){ try{List<?> raw=rest.exchange(URI.create(url),HttpMethod.GET,new HttpEntity<Void>(headers()),List.class).getBody(); if(raw==null)return Collections.emptyList(); List<String> out=new ArrayList<>(); for(Object x:raw)out.add(String.valueOf(x)); return out;}catch(HttpClientErrorException e){throw new IllegalStateException("Riot 최근 전적 조회에 실패했습니다: "+e.getStatusCode());} }
-    private String enc(String x){return URLEncoder.encode(x==null?"":x,StandardCharsets.UTF_8);} private String str(Object x){return x==null?"":String.valueOf(x);} private int num(Object x){return x instanceof Number?((Number)x).intValue():0;} private boolean bool(Object x){return Boolean.TRUE.equals(x);} private double round(double x){return Math.round(x*10.0)/10.0;}
+    private String enc(String x){
+        // URLEncoder는 공백을 '+'로 바꾸지만 URL 경로(path segment)에서는
+        // Riot API가 '%20' 형태를 기대하므로 명시적으로 교체합니다.
+        return URLEncoder.encode(x==null?"":x,StandardCharsets.UTF_8)
+                .replace("+","%20");
+    } private String str(Object x){return x==null?"":String.valueOf(x);} private int num(Object x){return x instanceof Number?((Number)x).intValue():0;} private boolean bool(Object x){return Boolean.TRUE.equals(x);} private double round(double x){return Math.round(x*10.0)/10.0;}
     @SuppressWarnings("unchecked") private Map<String,Object> map(Object x){return x instanceof Map?(Map<String,Object>)x:Collections.emptyMap();}
     @SuppressWarnings("unchecked") private List<Map<String,Object>> listOfMap(Object x){return x instanceof List?(List<Map<String,Object>>)(List<?>)x:Collections.emptyList();}
     private String normalizePosition(String p){ if("UTILITY".equals(p))return "SUPPORT"; if("MIDDLE".equals(p))return "MID"; if("BOTTOM".equals(p))return "ADC"; return p; }

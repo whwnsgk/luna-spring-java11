@@ -4,7 +4,7 @@
  <select id="list" resultType="map">SELECT season_id "seasonId",season_name "seasonName",start_date "startDate",end_date "endDate",active_yn "activeYn",created_at "createdAt" FROM season ORDER BY active_yn DESC,start_date DESC,season_id DESC</select>
  <select id="active" resultType="map">SELECT season_id "seasonId",season_name "seasonName",start_date "startDate",end_date "endDate",active_yn "activeYn" FROM season WHERE active_yn=true ORDER BY season_id DESC LIMIT 1</select>
  <select id="find" resultType="map">SELECT season_id "seasonId",season_name "seasonName",start_date "startDate",end_date "endDate",active_yn "activeYn" FROM season WHERE season_id=#{seasonId}</select>
- <insert id="insert" parameterType="map" useGeneratedKeys="true" keyProperty="seasonId" keyColumn="season_id">INSERT INTO season(season_name,start_date,end_date,active_yn) VALUES(#{seasonName},#{startDate}::date,#{endDate}::date,COALESCE(#{activeYn},false))</insert>
+ <insert id="insert" parameterType="map" useGeneratedKeys="true" keyProperty="seasonId" keyColumn="season_id">INSERT INTO season(season_name,start_date,end_date,active_yn) VALUES(#{seasonName},#{startDate,jdbcType=DATE},#{endDate,jdbcType=DATE},COALESCE(#{activeYn},false))</insert>
  <update id="deactivateAll">UPDATE season SET active_yn=false</update>
  <update id="activate">UPDATE season SET active_yn=true WHERE season_id=#{seasonId}</update>
 </mapper>
