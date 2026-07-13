@@ -1,6 +1,0 @@
-services:
-  - type: web
-    name: luna-spring-java11
-    runtime: docker
-    plan: free
-    healthCheckPath: /actuator/health

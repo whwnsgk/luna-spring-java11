@@ -1,39 +1,14 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>루나 호출 관제실</title>
-    <link rel="stylesheet" href="/style.css">
-</head>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css"></head>
 <body>
-    <main class="panel">
-        <div class="portrait">
-            <div class="moon">🌙</div>
-            <div class="maid">🎀</div>
-        </div>
-
-        <p class="online">JAVA 11 · SPRING BOOT · POSTGRESQL</p>
-        <h1>루나 호출 관제실</h1>
-
-        <p class="description">
-            버튼을 누르면 JavaScript가 Spring Controller를 호출하고,
-            Spring은 PostgreSQL에 저장된 호출 횟수를 증가시킵니다.
-        </p>
-
-        <section class="counter-box">
-            <span>DB에 저장된 호출 횟수</span>
-            <strong id="count">조회 중...</strong>
-        </section>
-
-        <button id="callButton" type="button">루나 불러보기</button>
-        <p id="message">주인님 호출을 기다리고 있어요.</p>
-
-        <p class="notice">
-            이번 버전은 PostgreSQL에 저장되므로 서버가 재시작돼도 호출 횟수가 유지됩니다.
-        </p>
-    </main>
-
-    <script src="/app.js"></script>
-</body>
-</html>
+<header><div class="brand">RIFT ARENA <small>롤 내전 관리실</small></div><nav><button data-page="home">대시보드</button><button data-page="members">멤버</button><button data-page="draft">내전 짜기</button><button data-page="matches">경기 기록</button><button data-page="stats">통계</button></nav></header>
+<main>
+<section id="home" class="page active"><div class="hero"><div><b>IN-HOUSE CONTROL ROOM</b><h1>밸런스는 공정하게,<br>전적은 확실하게.</h1><p>멤버 등록, 10인 팀 편성, 경기 결과 수동 입력과 통계를 한 곳에서 관리합니다.</p><button class="primary" data-page="draft">오늘의 내전 짜기</button></div><div class="orb">5 : 5</div></div><div id="metrics" class="metrics"></div><div class="twocol"><article><h2>최근 경기</h2><div id="recent"></div></article><article><h2>명예의 전당</h2><div id="hall"></div></article></div></section>
+<section id="members" class="page"><div class="heading"><div><b>MEMBERS</b><h1>멤버 관리</h1></div><button id="addMember" class="primary">멤버 추가</button></div><div id="memberList" class="cards"></div></section>
+<section id="draft" class="page"><div class="heading"><div><b>TEAM BUILDER</b><h1>내전 짜기</h1><p>멤버 카드를 더블클릭해 10명을 선택하거나 팀 칸으로 드래그하세요.</p></div><div><button id="clear" class="ghost">초기화</button> <button id="auto" class="primary">자동 짜기</button></div></div><div class="draftgrid"><article><h2>멤버 풀</h2><div id="pool" class="drop"></div></article><article><h2>참가자 <span id="count">0/10</span></h2><div id="selected" class="drop slots"></div></article></div><div class="teams"><article class="blue"><h2>블루팀 <span id="bcost">0</span></h2><div id="blue" class="drop"></div></article><article class="report"><h2>VS</h2><div><strong id="bwin">50.0%</strong> : <strong id="rwin">50.0%</strong></div><p id="message">10명을 선택해주세요.</p><button id="record" disabled>이 팀으로 기록</button></article><article class="red"><h2>레드팀 <span id="rcost">0</span></h2><div id="red" class="drop"></div></article></div></section>
+<section id="matches" class="page"><div class="heading"><div><b>MATCH ARCHIVE</b><h1>경기 기록</h1></div></div><div id="matchList"></div></section>
+<section id="stats" class="page"><div class="heading"><div><b>STATISTICS</b><h1>멤버 통계</h1></div></div><div class="table"><table><thead><tr><th>순위</th><th>멤버</th><th>솔랭</th><th>경기</th><th>승/패</th><th>승률</th><th>MVP</th><th>평균 K/D/A</th><th>코스트</th></tr></thead><tbody id="ranking"></tbody></table></div></section>
+</main>
+<div id="memberModal" class="modal"><form id="memberForm" class="modalbox"><button type="button" class="x">×</button><h2>멤버 등록</h2><input id="mid" type="hidden"><input id="puuid" type="hidden"><label>친구 이름<input id="realName" required></label><div class="row"><label>게임 이름<input id="gameName" required></label><label>태그<input id="tagLine" required></label><button id="riotLookup" type="button">Riot 확인</button></div><div id="riotResult" class="notice">API 키가 없어도 수동 등록 가능합니다.</div><div class="row"><label>티어<select id="tier"><option>UNRANKED</option><option>IRON</option><option>BRONZE</option><option>SILVER</option><option>GOLD</option><option>PLATINUM</option><option>EMERALD</option><option>DIAMOND</option><option>MASTER</option><option>GRANDMASTER</option><option>CHALLENGER</option></select></label><label>랭크<select id="rank"><option value="">-</option><option>IV</option><option>III</option><option>II</option><option>I</option></select></label><label>LP<input id="lp" type="number" value="0"></label><label>코스트<input id="score" type="number" placeholder="비우면 자동"></label></div><fieldset><legend>선호 포지션</legend><div id="positions"></div></fieldset><button class="primary">저장</button></form></div>
+<div id="matchModal" class="modal"><form id="matchForm" class="modalbox wide"><button type="button" class="x">×</button><h2>경기 결과 등록</h2><div class="row"><label>경기 일시<input id="playedAt" type="datetime-local" required></label><label>승리팀<select id="winner"><option value="BLUE">블루</option><option value="RED">레드</option></select></label></div><div id="players"></div><label>메모<textarea id="memo"></textarea></label><button class="primary">경기 저장</button></form></div>
+<div id="detailModal" class="modal"><div class="modalbox wide"><button type="button" class="x">×</button><div id="detail"></div></div></div>
+<div id="toast"></div><script src="/app.js"></script></body></html>
