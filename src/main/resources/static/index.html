@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.4.11"></head>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.4.12-hotfix"></head>
 <body>
 <header><div class="brand"><span class="brand-mark">RA</span><span>RIFT ARENA <small>롤 내전 관리실</small></span></div><nav><button class="nav-btn active" data-page="home">대시보드</button><button class="nav-btn" data-page="members">멤버</button><button class="nav-btn" data-page="draft">내전 짜기</button><button class="nav-btn" data-page="auction">토큰 경매</button><button class="nav-btn" data-page="matches">경기 기록</button><button class="nav-btn" data-page="stats">통계</button><button class="nav-btn" data-page="calc">산출근거</button></nav></header>
 <div class="seasonbar"><div><span>시즌</span><select id="seasonFilter"></select></div><button id="manageSeason" class="btn btn-ghost btn-small">시즌 관리</button></div>
@@ -59,8 +59,8 @@
         <h3>1. 초기 파워 점수</h3>
         <ul>
           <li><b>티어 점수 30%</b> : 현재 솔로 랭크 티어/티어 단계(I, II, III, IV)를 점수화합니다.</li>
-          <li><b>라인 적합도 15%</b> : 선호 포지션 1순위는 2점, 2·3순위와 FILL은 1점으로 보고 5개 라인에 분배합니다.</li>
-          <li><b>챔피언 폭 15%</b> : 경기 기록 기준으로 포지션별 고유 챔피언 수를 계산합니다.</li>
+          <li><b>라인 점수</b> : 라인별 1순위는 2점, 2순위는 1점, 절대 안 가는 라인은 0점으로 입력합니다. 각 라인의 500점을 해당 라인을 갈 수 있는 인원수로 나눈 뒤 개인 지표를 곱합니다.</li>
+          <li><b>챔피언 폭</b> : 밴 상황까지 고려해 사람별·라인별 기용 가능한 챔피언 수를 직접 입력합니다. 7개 초과부터는 로그 함수로 증가폭을 완만하게 합니다.</li>
           <li><b>상위 10% 보너스</b> : 티어 점수, 라인 점수, 챔피언 폭, 내전 승률, 내전 KDA가 각각 상위 10%에 들면 항목당 보너스 1점을 줍니다. 컷오프 동점자는 함께 포함됩니다.</li>
           <li><b>내전 승률/KDA</b> 는 가중 z-score에 직접 더하지 않고, 상위 10% Outlier 보너스에만 반영합니다. 경기 기록이 없는 멤버는 승률 0.5, KDA 3.0을 사용합니다.</li>
         </ul>
@@ -322,7 +322,19 @@
 <section id="matches" class="page"><div class="heading"><div><b>MATCH ARCHIVE</b><h1>경기 기록</h1></div><button id="forceRecord" class="btn btn-danger">강제 기록</button></div><div id="recentModified" class="recent-modified hidden"></div><div id="matchList"></div></section>
 <section id="stats" class="page"><div class="heading"><div><b>STATISTICS</b><h1>멤버 통계</h1></div></div><div class="table"><table><thead><tr><th>순위</th><th>멤버</th><th>솔랭</th><th>경기</th><th>승/패</th><th>승률</th><th>MVP</th><th>평균 K/D/A</th><th>코스트</th></tr></thead><tbody id="ranking"></tbody></table></div></section>
 </main>
-<div id="memberModal" class="modal"><form id="memberForm" class="modalbox"><button type="button" class="x">×</button><h2>멤버 등록</h2><input id="mid" type="hidden"><input id="puuid" type="hidden"><label>친구 이름<input id="realName" required></label><div class="row"><label>게임 이름<input id="gameName" required></label><label>태그<input id="tagLine" required></label><button id="riotLookup" type="button" class="btn btn-riot">Riot ID 확인</button></div><div id="riotResult" class="notice">API 키가 없어도 수동 등록 가능합니다.</div><div class="row"><label>티어<select id="tier"><option>UNRANKED</option><option>IRON</option><option>BRONZE</option><option>SILVER</option><option>GOLD</option><option>PLATINUM</option><option>EMERALD</option><option>DIAMOND</option><option>MASTER</option><option>GRANDMASTER</option><option>CHALLENGER</option></select></label><label>랭크<select id="rank"><option value="">-</option><option>IV</option><option>III</option><option>II</option><option>I</option></select></label><label>LP<input id="lp" type="number" value="0"></label><label>코스트<input id="score" type="number" placeholder="비우면 자동"></label></div><fieldset><legend>선호 포지션</legend><div id="positions"></div></fieldset><div class="form-actions"><button type="button" class="btn btn-ghost modal-cancel">취소</button><button class="btn btn-primary">저장</button></div></form></div>
+<div id="riotBulkModal" class="modal"><div class="modalbox wide"><button type="button" class="x">×</button><h2>Riot 일괄 갱신 대상 선택</h2><p class="notice">수동 티어가 있는 멤버는 기본적으로 티어를 보존합니다. 실제 Riot 티어로 초기화할 사람만 ‘티어 덮어쓰기’를 체크하세요.</p><div id="riotBulkList" class="riot-bulk-list"></div><div class="form-actions"><button type="button" class="btn btn-ghost modal-cancel">취소</button><button id="runBulkRiotRefresh" type="button" class="btn btn-riot">선택 인원 갱신</button></div></div></div>
+<div id="memberModal" class="modal"><form id="memberForm" class="modalbox wide"><button type="button" class="x">×</button><h2>멤버 등록·수정</h2><input id="mid" type="hidden"><input id="puuid" type="hidden">
+<label class="inline-check"><input id="externalYn" type="checkbox"> 외부인 등록 — Riot ID 없이도 티어·라인·챔피언 폭으로 초기점수를 계산합니다.</label>
+<label>친구 이름<input id="realName" required></label>
+<div class="row"><label>게임 이름<input id="gameName"></label><label>태그<input id="tagLine"></label><button id="riotLookup" type="button" class="btn btn-riot">Riot ID 확인</button></div>
+<div id="riotResult" class="notice">외부인이 아니라면 Riot ID를 입력해주세요.</div>
+<div class="row"><label>티어<select id="tier"><option>UNRANKED</option><option>IRON</option><option>BRONZE</option><option>SILVER</option><option>GOLD</option><option>PLATINUM</option><option>EMERALD</option><option>DIAMOND</option><option>MASTER</option><option>GRANDMASTER</option><option>CHALLENGER</option></select></label><label>랭크<select id="rank"><option value="">-</option><option>IV</option><option>III</option><option>II</option><option>I</option></select></label><label>LP<input id="lp" type="number" value="0" min="0" max="100"></label><label>코스트<input id="score" type="number" placeholder="비우면 자동"></label></div>
+<label class="inline-check"><input id="manualTierYn" type="checkbox"> 수동 티어 고정 — Riot 갱신 시 체크한 경우에만 실제 Riot 티어로 덮어씁니다.</label>
+<fieldset><legend>라인별 선호도와 기용 가능한 챔피언 수</legend>
+<p class="field-help">각 사람은 1순위(2점) 한 개, 2순위(1점) 최대 한 개를 지정합니다. 나머지는 절대 안 감(0점)입니다.</p>
+<div id="laneProfileEditor" class="lane-profile-editor"></div>
+</fieldset>
+<div class="form-actions"><button type="button" class="btn btn-ghost modal-cancel">취소</button><button class="btn btn-primary">저장 후 점수 재계산</button></div></form></div>
 <div id="matchModal" class="modal"><form id="matchForm" class="modalbox wide"><button type="button" class="x">×</button><h2 id="matchModalTitle">경기 결과 등록</h2><input id="editingMatchId" type="hidden"><input id="forceMode" type="hidden" value="N"><div class="row"><label>시즌<select id="matchSeason"></select></label><label>경기 일시<input id="playedAt" type="datetime-local" required></label><label>승리팀<select id="winner"><option value="BLUE">블루</option><option value="RED">레드</option></select></label></div><div id="players"></div><label>메모<textarea id="memo"></textarea></label><div id="editMeta" class="row hidden"><label>수정자<input id="updatedBy" placeholder="이름"></label><label>수정 사유<input id="updateReason" placeholder="예: KDA 오입력 수정"></label></div><div class="form-actions"><button type="button" class="btn btn-ghost modal-cancel">취소</button><button class="btn btn-primary">경기 저장</button></div></form></div>
 <div id="seasonModal" class="modal"><div class="modalbox"><button type="button" class="x">×</button><h2>시즌 관리</h2><div id="seasonList" class="season-list"></div><form id="seasonForm"><label>시즌 이름<input id="seasonName" placeholder="예: 2026 여름 시즌" required></label><div class="row"><label>시작일<input id="seasonStart" type="date" required></label><label>종료일<input id="seasonEnd" type="date"></label></div><label class="checkline"><input id="seasonActive" type="checkbox" checked> 생성 즉시 활성 시즌으로 사용</label><div class="form-actions"><button class="btn btn-primary">새 시즌 생성</button></div></form></div></div>
 <div id="memberDetailModal" class="modal"><div class="modalbox wide"><button type="button" class="x">×</button><div id="memberDetail"></div></div></div>
@@ -366,4 +378,4 @@
 </div>
 
 <datalist id="championOptions"></datalist>
-<div id="toast"></div><script src="/app.js?v=3.4.11"></script></body></html>
+<div id="toast"></div><script src="/app.js?v=3.4.12-hotfix2"></script></body></html>

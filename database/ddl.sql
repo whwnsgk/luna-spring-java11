@@ -19,6 +19,8 @@ CREATE TABLE member (
  recent_avg_assists NUMERIC(6,1) NOT NULL DEFAULT 0,
  most_position VARCHAR(10),
  balance_score INTEGER NOT NULL DEFAULT 1000,
+ external_yn BOOLEAN NOT NULL DEFAULT FALSE,
+ manual_tier_yn BOOLEAN NOT NULL DEFAULT FALSE,
  active_yn BOOLEAN NOT NULL DEFAULT TRUE,
  riot_updated_at TIMESTAMP,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -34,6 +36,20 @@ CREATE TABLE member_position(
  PRIMARY KEY(member_id,position_code),
  CONSTRAINT ck_position CHECK(position_code IN('TOP','JUNGLE','MID','ADC','SUPPORT','FILL'))
 );
+
+
+CREATE TABLE member_lane_profile(
+ member_id BIGINT NOT NULL REFERENCES member(member_id) ON DELETE CASCADE,
+ position_code VARCHAR(10) NOT NULL,
+ preference_score SMALLINT NOT NULL DEFAULT 0,
+ champion_count INTEGER NOT NULL DEFAULT 0,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(member_id,position_code),
+ CONSTRAINT ck_lane_profile_position CHECK(position_code IN('TOP','JUNGLE','MID','ADC','SUPPORT')),
+ CONSTRAINT ck_lane_preference_score CHECK(preference_score IN(0,1,2)),
+ CONSTRAINT ck_lane_champion_count CHECK(champion_count>=0)
+);
+
 CREATE TABLE season(
  season_id BIGSERIAL PRIMARY KEY,
  season_name VARCHAR(100) NOT NULL,

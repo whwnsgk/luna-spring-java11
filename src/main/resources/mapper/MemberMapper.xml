@@ -1,8 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.riftarena.member.MemberMapper">
- <resultMap id="member" type="map"><id column="member_id" property="memberId"/><result column="real_name" property="realName"/><result column="game_name" property="gameName"/><result column="tag_line" property="tagLine"/><result column="puuid" property="puuid"/><result column="profile_icon_id" property="profileIconId"/><result column="summoner_level" property="summonerLevel"/><result column="solo_tier" property="soloTier"/><result column="solo_rank" property="soloRank"/><result column="solo_lp" property="soloLp"/><result column="recent_wins" property="recentWins"/><result column="recent_losses" property="recentLosses"/><result column="recent_win_rate" property="recentWinRate"/><result column="recent_avg_kills" property="recentAvgKills"/><result column="recent_avg_deaths" property="recentAvgDeaths"/><result column="recent_avg_assists" property="recentAvgAssists"/><result column="most_position" property="mostPosition"/><result column="riot_updated_at" property="riotUpdatedAt"/><result column="balance_score" property="balanceScore"/><result column="match_count" property="matchCount"/><result column="win_count" property="winCount"/><result column="loss_count" property="lossCount"/><result column="inhouse_win_rate" property="inhouseWinRate"/><result column="inhouse_most_champion" property="inhouseMostChampion"/><collection property="preferredPositions" ofType="string" column="member_id" select="positions"/></resultMap>
- <select id="positions" resultType="string">SELECT position_code FROM member_position WHERE member_id=#{memberId} ORDER BY priority_no</select>
+ <resultMap id="member" type="map"><id column="member_id" property="memberId"/><result column="real_name" property="realName"/><result column="game_name" property="gameName"/><result column="tag_line" property="tagLine"/><result column="puuid" property="puuid"/><result column="profile_icon_id" property="profileIconId"/><result column="summoner_level" property="summonerLevel"/><result column="solo_tier" property="soloTier"/><result column="solo_rank" property="soloRank"/><result column="solo_lp" property="soloLp"/><result column="recent_wins" property="recentWins"/><result column="recent_losses" property="recentLosses"/><result column="recent_win_rate" property="recentWinRate"/><result column="recent_avg_kills" property="recentAvgKills"/><result column="recent_avg_deaths" property="recentAvgDeaths"/><result column="recent_avg_assists" property="recentAvgAssists"/><result column="most_position" property="mostPosition"/><result column="riot_updated_at" property="riotUpdatedAt"/><result column="balance_score" property="balanceScore"/><result column="external_yn" property="externalYn"/><result column="manual_tier_yn" property="manualTierYn"/><result column="match_count" property="matchCount"/><result column="win_count" property="winCount"/><result column="loss_count" property="lossCount"/><result column="inhouse_win_rate" property="inhouseWinRate"/><result column="inhouse_most_champion" property="inhouseMostChampion"/><collection property="preferredPositions" ofType="string" column="member_id" select="positions"/><collection property="laneProfiles" ofType="map" column="member_id" select="laneProfiles"/></resultMap>
+ <select id="positions" resultType="string">
+  SELECT position_code
+    FROM member_lane_profile
+   WHERE member_id=#{memberId}
+     AND preference_score&gt;0
+   ORDER BY preference_score DESC,
+            CASE position_code WHEN 'TOP' THEN 1 WHEN 'JUNGLE' THEN 2 WHEN 'MID' THEN 3 WHEN 'ADC' THEN 4 ELSE 5 END
+ </select>
+ <select id="laneProfiles" resultType="map">
+  SELECT position_code "positionCode",
+         preference_score "preferenceScore",
+         champion_count "championCount"
+    FROM member_lane_profile
+   WHERE member_id=#{memberId}
+   ORDER BY CASE position_code WHEN 'TOP' THEN 1 WHEN 'JUNGLE' THEN 2 WHEN 'MID' THEN 3 WHEN 'ADC' THEN 4 ELSE 5 END
+ </select>
  <sql id="base">SELECT m.*,COUNT(mp.match_player_id)::int match_count,COUNT(mp.match_player_id) FILTER(WHERE mp.win_yn)::int win_count,COUNT(mp.match_player_id) FILTER(WHERE NOT mp.win_yn)::int loss_count,COALESCE(ROUND(COUNT(mp.match_player_id) FILTER(WHERE mp.win_yn)*100.0/NULLIF(COUNT(mp.match_player_id),0),1),0) inhouse_win_rate FROM member m LEFT JOIN inhouse_match_player mp ON mp.member_id=m.member_id</sql>
  <select id="list" resultMap="member"><include refid="base"/> WHERE m.active_yn=true GROUP BY m.member_id ORDER BY m.real_name</select>
  <select id="find" resultMap="member"><include refid="base"/> WHERE m.member_id=#{memberId} GROUP BY m.member_id</select>
@@ -30,11 +45,39 @@
    GROUP BY m.member_id
  </select>
  <select id="duplicate" resultType="int">SELECT COUNT(*) FROM member WHERE LOWER(game_name)=LOWER(#{gameName}) AND LOWER(tag_line)=LOWER(#{tagLine}) AND active_yn=true <if test="excludeId!=null">AND member_id!=#{excludeId}</if></select>
- <insert id="insert" parameterType="map" useGeneratedKeys="true" keyProperty="memberId" keyColumn="member_id">INSERT INTO member(real_name,game_name,tag_line,puuid,solo_tier,solo_rank,solo_lp,balance_score) VALUES(#{realName},#{gameName},#{tagLine},#{puuid},#{soloTier},#{soloRank},COALESCE(#{soloLp},0),#{balanceScore})</insert>
- <update id="update" parameterType="map">UPDATE member SET real_name=#{realName},game_name=#{gameName},tag_line=#{tagLine},puuid=#{puuid},solo_tier=#{soloTier},solo_rank=#{soloRank},solo_lp=COALESCE(#{soloLp},0),balance_score=#{balanceScore},updated_at=CURRENT_TIMESTAMP WHERE member_id=#{memberId}</update>
- <update id="deactivate">UPDATE member SET active_yn=false,updated_at=CURRENT_TIMESTAMP WHERE member_id=#{memberId}</update><delete id="deletePositions">DELETE FROM member_position WHERE member_id=#{memberId}</delete><insert id="insertPosition">INSERT INTO member_position(member_id,position_code,priority_no) VALUES(#{memberId},#{positionCode},#{priorityNo})</insert>
+ <insert id="insert" parameterType="map" useGeneratedKeys="true" keyProperty="memberId" keyColumn="member_id">INSERT INTO member(real_name,game_name,tag_line,puuid,solo_tier,solo_rank,solo_lp,balance_score,external_yn,manual_tier_yn) VALUES(#{realName},#{gameName},#{tagLine},#{puuid},#{soloTier},#{soloRank},COALESCE(#{soloLp},0),#{balanceScore},COALESCE(#{externalYn},false),COALESCE(#{manualTierYn},false))</insert>
+ <update id="update" parameterType="map">UPDATE member SET real_name=#{realName},game_name=#{gameName},tag_line=#{tagLine},puuid=#{puuid},solo_tier=#{soloTier},solo_rank=#{soloRank},solo_lp=COALESCE(#{soloLp},0),balance_score=#{balanceScore},external_yn=COALESCE(#{externalYn},false),manual_tier_yn=COALESCE(#{manualTierYn},false),updated_at=CURRENT_TIMESTAMP WHERE member_id=#{memberId}</update>
+ <update id="deactivate">UPDATE member SET active_yn=false,updated_at=CURRENT_TIMESTAMP WHERE member_id=#{memberId}</update>
+ <delete id="deletePositions">DELETE FROM member_position WHERE member_id=#{memberId}</delete>
+ <insert id="insertPosition">INSERT INTO member_position(member_id,position_code,priority_no) VALUES(#{memberId},#{positionCode},#{priorityNo})</insert>
+ <delete id="deleteLaneProfiles">DELETE FROM member_lane_profile WHERE member_id=#{memberId}</delete>
+ <insert id="insertLaneProfile" parameterType="map">
+  INSERT INTO member_lane_profile(member_id,position_code,preference_score,champion_count,updated_at)
+  VALUES(#{memberId},#{positionCode},#{preferenceScore},#{championCount},CURRENT_TIMESTAMP)
+ </insert>
  <select id="hallOfFame" resultType="map">SELECT m.member_id,m.real_name,m.game_name,m.tag_line,COUNT(*) match_count,COUNT(*) FILTER(WHERE mp.win_yn) win_count,ROUND(COUNT(*) FILTER(WHERE mp.win_yn)*100.0/COUNT(*),1) win_rate FROM member m JOIN inhouse_match_player mp ON mp.member_id=m.member_id JOIN inhouse_match im ON im.match_id=mp.match_id WHERE m.active_yn=true <if test="seasonId!=null">AND im.season_id=#{seasonId}</if> GROUP BY m.member_id HAVING COUNT(*)>=3 ORDER BY win_rate DESC,match_count DESC LIMIT 3</select>
- <update id="updateRiotProfile" parameterType="map">UPDATE member SET puuid=#{puuid},summoner_id=#{summonerId},profile_icon_id=#{profileIconId},summoner_level=#{summonerLevel},solo_tier=#{soloTier},solo_rank=#{soloRank},solo_lp=#{soloLp},recent_wins=#{recentWins},recent_losses=#{recentLosses},recent_win_rate=#{recentWinRate},recent_avg_kills=#{recentAvgKills},recent_avg_deaths=#{recentAvgDeaths},recent_avg_assists=#{recentAvgAssists},most_position=#{mostPosition},balance_score=#{balanceScore},riot_updated_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE member_id=#{memberId}</update>
+ <update id="updateRiotProfile" parameterType="map">
+  UPDATE member
+     SET puuid=#{puuid},
+         summoner_id=#{summonerId},
+         profile_icon_id=#{profileIconId},
+         summoner_level=#{summonerLevel},
+         solo_tier=CASE WHEN COALESCE(#{preserveManualTier},false) THEN solo_tier ELSE #{soloTier} END,
+         solo_rank=CASE WHEN COALESCE(#{preserveManualTier},false) THEN solo_rank ELSE #{soloRank} END,
+         solo_lp=CASE WHEN COALESCE(#{preserveManualTier},false) THEN solo_lp ELSE #{soloLp} END,
+         manual_tier_yn=CASE WHEN COALESCE(#{preserveManualTier},false) THEN manual_tier_yn ELSE false END,
+         recent_wins=#{recentWins},
+         recent_losses=#{recentLosses},
+         recent_win_rate=#{recentWinRate},
+         recent_avg_kills=#{recentAvgKills},
+         recent_avg_deaths=#{recentAvgDeaths},
+         recent_avg_assists=#{recentAvgAssists},
+         most_position=#{mostPosition},
+         balance_score=#{balanceScore},
+         riot_updated_at=CURRENT_TIMESTAMP,
+         updated_at=CURRENT_TIMESTAMP
+   WHERE member_id=#{memberId}
+ </update>
  <update id="updateBalanceScore">UPDATE member SET balance_score=#{balanceScore},updated_at=CURRENT_TIMESTAMP WHERE member_id=#{memberId}</update>
  <insert id="insertRiotSnapshot" parameterType="map">INSERT INTO member_riot_snapshot(member_id,solo_tier,solo_rank,solo_lp,recent_wins,recent_losses,recent_win_rate,recent_avg_kills,recent_avg_deaths,recent_avg_assists,most_position,collected_at) VALUES(#{memberId},#{soloTier},#{soloRank},#{soloLp},#{recentWins},#{recentLosses},#{recentWinRate},#{recentAvgKills},#{recentAvgDeaths},#{recentAvgAssists},#{mostPosition},CURRENT_TIMESTAMP)</insert>
  <delete id="deleteChampionStats">DELETE FROM member_champion_stat WHERE member_id=#{memberId} AND stat_scope='SOLO_RECENT'</delete>
@@ -50,11 +93,8 @@
  <select id="ratingChampionCounts" resultType="map">
   SELECT member_id "memberId",
          position_code "positionCode",
-         COUNT(DISTINCT COALESCE(champion_code,champion_name))::int "championCount"
-    FROM inhouse_match_player
-   WHERE position_code IN ('TOP','JUNGLE','MID','ADC','SUPPORT')
-     AND COALESCE(champion_code,champion_name) IS NOT NULL
-   GROUP BY member_id,position_code
+         champion_count "championCount"
+    FROM member_lane_profile
  </select>
 
  <select id="ratingMatches" resultType="map">

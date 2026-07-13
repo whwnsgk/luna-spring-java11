@@ -14,18 +14,84 @@ public class MemberService {
  public Map<String,Object> lookup(String gameName,String tagLine){return riot.lookupAccount(normalizeGameName(gameName),normalizeTagLine(tagLine));} public boolean riotConfigured(){return riot.configured();}
  @SuppressWarnings("unchecked")
  @Transactional public Map<String,Object> save(Map<String,Object> p, Long id){
-  String real=trim(p.get("realName")), game=normalizeGameName(p.get("gameName")), tag=normalizeTagLine(p.get("tagLine"));
-  if(real.isEmpty()||game.isEmpty()||tag.isEmpty()) throw new IllegalArgumentException("이름과 Riot ID를 입력해주세요.");
-  if(mapper.duplicate(game,tag,id)>0) throw new IllegalStateException("이미 등록된 Riot ID입니다.");
-  List<String> positions=(List<String>)p.get("preferredPositions"); if(positions==null||positions.isEmpty()||positions.size()>3) throw new IllegalArgumentException("선호 포지션은 1~3개 선택해주세요.");
-  for(String pos:positions) if(!POS.contains(pos)) throw new IllegalArgumentException("잘못된 포지션입니다.");
-  p.put("realName",real);p.put("gameName",game);p.put("tagLine",tag); if(p.get("soloTier")==null)p.put("soloTier","UNRANKED");
+  String real=trim(p.get("realName"));
+  boolean external=Boolean.TRUE.equals(p.get("externalYn"));
+  String game=normalizeGameName(p.get("gameName"));
+  String tag=normalizeTagLine(p.get("tagLine"));
+
+  if(real.isEmpty())throw new IllegalArgumentException("이름을 입력해주세요.");
+  if(external){
+   if(game.isEmpty())game="EXTERNAL_"+UUID.randomUUID().toString().replace("-","").substring(0,12);
+   if(tag.isEmpty())tag="EXT";
+   p.put("puuid",null);
+  }else if(game.isEmpty()||tag.isEmpty()){
+   throw new IllegalArgumentException("외부인이 아니라면 Riot ID를 입력해주세요.");
+  }
+
+  if(mapper.duplicate(game,tag,id)>0)throw new IllegalStateException("이미 등록된 Riot ID입니다.");
+
+  @SuppressWarnings("unchecked")
+  List<Map<String,Object>> laneProfiles=(List<Map<String,Object>>)p.get("laneProfiles");
+  validateLaneProfiles(laneProfiles);
+
+  p.put("realName",real);
+  p.put("gameName",game);
+  p.put("tagLine",tag);
+  p.put("externalYn",external);
+  p.put("manualTierYn",Boolean.TRUE.equals(p.get("manualTierYn"))||external);
+  if(p.get("soloTier")==null)p.put("soloTier","UNRANKED");
   if(p.get("balanceScore")==null)p.put("balanceScore",rankScore((String)p.get("soloTier"),(String)p.get("soloRank"),num(p.get("soloLp"))));
-  if(id==null){mapper.insert(p);id=((Number)p.get("memberId")).longValue();}else{p.put("memberId",id);mapper.update(p);} mapper.deletePositions(id);int i=1;for(String pos:positions)mapper.insertPosition(id,pos,i++);return find(id);
+
+  if(id==null){
+   mapper.insert(p);
+   id=((Number)p.get("memberId")).longValue();
+  }else{
+   p.put("memberId",id);
+   mapper.update(p);
+  }
+
+  mapper.deleteLaneProfiles(id);
+  for(Map<String,Object> profile:laneProfiles){
+   Map<String,Object> row=new HashMap<>(profile);
+   row.put("memberId",id);
+   mapper.insertLaneProfile(row);
+  }
+
+  // 티어/라인 선호도/챔피언 수를 수동 변경하면 즉시 전체 점수를 다시 계산합니다.
+  recalculateAllBalanceScores();
+  return find(id);
+ }
+
+ private void validateLaneProfiles(List<Map<String,Object>> profiles){
+  if(profiles==null||profiles.size()!=5)
+   throw new IllegalArgumentException("탑/정글/미드/원딜/서폿 5개 라인 정보를 모두 입력해주세요.");
+
+  Set<String> lanes=new HashSet<>();
+  int primaryCount=0;
+  int secondaryCount=0;
+  for(Map<String,Object> profile:profiles){
+   String lane=textValue(profile,"positionCode","position_code").toUpperCase(Locale.ROOT);
+   int preference=intValue(profile,"preferenceScore","preference_score");
+   int championCount=intValue(profile,"championCount","champion_count");
+
+   if(!Arrays.asList("TOP","JUNGLE","MID","ADC","SUPPORT").contains(lane)||!lanes.add(lane))
+    throw new IllegalArgumentException("라인 정보가 중복되었거나 잘못되었습니다.");
+   if(preference<0||preference>2)
+    throw new IllegalArgumentException("라인 선호도는 0, 1, 2만 가능합니다.");
+   if(championCount<0)
+    throw new IllegalArgumentException("기용 가능한 챔피언 수는 0 이상이어야 합니다.");
+   if(preference==2)primaryCount++;
+   if(preference==1)secondaryCount++;
+  }
+  if(primaryCount!=1)throw new IllegalArgumentException("1순위 라인은 정확히 하나만 선택해주세요.");
+  if(secondaryCount>1)throw new IllegalArgumentException("2순위 라인은 최대 하나만 선택할 수 있습니다.");
  }
  @SuppressWarnings("unchecked")
- @Transactional public Map<String,Object> refreshRiot(Long id){
+ @Transactional public Map<String,Object> refreshRiot(Long id,boolean overwriteManualTier){
   Map<String,Object> member=find(id);
+  if(Boolean.TRUE.equals(member.get("externalYn")))
+   throw new IllegalArgumentException("외부인은 Riot API 갱신 대상이 아닙니다.");
+
   String gameName=normalizeGameName(firstValue(member,"gameName","game_name"));
   String tagLine=normalizeTagLine(firstValue(member,"tagLine","tag_line"));
 
@@ -38,6 +104,8 @@ public class MemberService {
   // 과거에 공백이 포함된 값이 저장되어 있어도 갱신 시 정규화합니다.
   Map<String,Object> data=riot.collectProfile(gameName,tagLine);
   data.put("memberId",id);
+  boolean preserveManualTier=Boolean.TRUE.equals(member.get("manualTierYn"))&&!overwriteManualTier;
+  data.put("preserveManualTier",preserveManualTier);
   data.put("balanceScore",rankScore((String)data.get("soloTier"),(String)data.get("soloRank"),num(data.get("soloLp"))));
   mapper.updateRiotProfile(data);
   mapper.insertRiotSnapshot(data);
@@ -53,22 +121,33 @@ public class MemberService {
   return detail(id,null);
  }
 
- public Map<String,Object> refreshAllRiot(){
+ public Map<String,Object> refreshAllRiot(Map<String,Object> request){
+  @SuppressWarnings("unchecked")
+  List<Number> selectedRaw=request==null?null:(List<Number>)request.get("memberIds");
+  @SuppressWarnings("unchecked")
+  List<Number> overwriteRaw=request==null?null:(List<Number>)request.get("overwriteTierMemberIds");
+
+  Set<Long> selected=new LinkedHashSet<>();
+  if(selectedRaw!=null)for(Number value:selectedRaw)selected.add(value.longValue());
+  Set<Long> overwrite=new HashSet<>();
+  if(overwriteRaw!=null)for(Number value:overwriteRaw)overwrite.add(value.longValue());
+
   List<Map<String,Object>> targets=list();
+  if(!selected.isEmpty())targets.removeIf(member->!selected.contains(((Number)member.get("memberId")).longValue()));
+  targets.removeIf(member->Boolean.TRUE.equals(member.get("externalYn")));
+
   List<Map<String,Object>> results=new ArrayList<>();
   int success=0,failed=0;
-
   for(Map<String,Object> member:targets){
    Long memberId=((Number)member.get("memberId")).longValue();
    String realName=String.valueOf(member.get("realName"));
    Map<String,Object> result=new LinkedHashMap<>();
    result.put("memberId",memberId);
    result.put("realName",realName);
-
    try{
-    refreshRiot(memberId);
+    refreshRiot(memberId,overwrite.contains(memberId));
     result.put("success",true);
-    result.put("message","갱신 완료");
+    result.put("message",overwrite.contains(memberId)?"Riot 티어까지 덮어씀":"수동 티어 보존 후 갱신");
     success++;
    }catch(Exception e){
     result.put("success",false);
@@ -139,31 +218,28 @@ public class MemberService {
   double[] gameWinRate=new double[n];
   double[] gameKda=new double[n];
 
-  Map<String,Double> laneDenom=new HashMap<>();
-  for(String lane:lanes)laneDenom.put(lane,0.0);
+  Map<String,Integer> laneEligibleCount=new HashMap<>();
+  for(String lane:lanes)laneEligibleCount.put(lane,0);
 
-  List<Map<String,Double>> weightsByMember=new ArrayList<>();
+  List<Map<String,Integer>> preferenceByMember=new ArrayList<>();
   for(int i=0;i<n;i++){
    Map<String,Object> member=active.get(i);
-   Map<String,Double> weights=new HashMap<>();
-   for(String lane:lanes)weights.put(lane,0.0);
+   Map<String,Integer> preferences=new HashMap<>();
+   for(String lane:lanes)preferences.put(lane,0);
 
    @SuppressWarnings("unchecked")
-   List<String> positions=(List<String>)member.get("preferredPositions");
-   if(positions!=null){
-    int priority=0;
-    for(String raw:positions){
-     String pos=raw==null?"":raw.toUpperCase(Locale.ROOT);
-     if("FILL".equals(pos)){
-      for(String lane:lanes)weights.put(lane,Math.max(weights.get(lane),0.5));
-     }else if(weights.containsKey(pos)){
-      weights.put(pos,Math.max(weights.get(pos),priority==0?1.0:0.5));
-     }
-     priority++;
+   List<Map<String,Object>> profiles=(List<Map<String,Object>>)member.get("laneProfiles");
+   if(profiles!=null){
+    for(Map<String,Object> profile:profiles){
+     String lane=textValue(profile,"positionCode","position_code").toUpperCase(Locale.ROOT);
+     int preference=intValue(profile,"preferenceScore","preference_score");
+     if(preferences.containsKey(lane))preferences.put(lane,preference);
     }
    }
-   weightsByMember.add(weights);
-   for(String lane:lanes)laneDenom.put(lane,laneDenom.get(lane)+weights.get(lane));
+   preferenceByMember.add(preferences);
+   for(String lane:lanes){
+    if(preferences.get(lane)>0)laneEligibleCount.put(lane,laneEligibleCount.get(lane)+1);
+   }
   }
 
   for(int i=0;i<n;i++){
@@ -189,18 +265,18 @@ public class MemberService {
 
    double laneTotal=0.0;
    double champTotal=0.0;
-   Map<String,Double> weights=weightsByMember.get(i);
+   Map<String,Integer> preferences=preferenceByMember.get(i);
    Map<String,Integer> counts=champCounts.getOrDefault(memberId,Collections.emptyMap());
 
    for(String lane:lanes){
-    double denom=laneDenom.get(lane);
-    if(denom>0)laneTotal+=500.0*weights.get(lane)/denom;
+    int eligible=laneEligibleCount.get(lane);
+    int indicator=preferences.get(lane);
+    if(eligible>0)laneTotal+=(500.0/eligible)*indicator;
 
     int championCount=counts.getOrDefault(lane,0);
-    champTotal+=Math.max(
-      championCount,
-      7.0+Math.log(Math.max(championCount-6,1))
-    );
+    champTotal+=championCount<=7
+      ?championCount
+      :7.0+Math.log(Math.max(championCount-6,1));
    }
    laneScore[i]=laneTotal;
    champScore[i]=champTotal;

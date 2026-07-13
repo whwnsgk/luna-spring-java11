@@ -10,8 +10,8 @@ public class MemberController {
  @PostMapping @ResponseStatus(HttpStatus.CREATED) public Map<String,Object> create(@RequestBody Map<String,Object> p){return service.save(p,null);}
  @PutMapping("/{id}") public Map<String,Object> update(@PathVariable Long id,@RequestBody Map<String,Object> p){return service.save(p,id);}
  @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void delete(@PathVariable Long id){service.delete(id);}
- @PostMapping("/{id}/riot-refresh") public Map<String,Object> refresh(@PathVariable Long id){return service.refreshRiot(id);}
- @PostMapping("/riot-refresh-all") public Map<String,Object> refreshAll(){return service.refreshAllRiot();}
+ @PostMapping("/{id}/riot-refresh") public Map<String,Object> refresh(@PathVariable Long id,@RequestParam(defaultValue="false") boolean overwriteManualTier){return service.refreshRiot(id,overwriteManualTier);}
+ @PostMapping("/riot-refresh-all") public Map<String,Object> refreshAll(@RequestBody(required=false) Map<String,Object> request){return service.refreshAllRiot(request);}
  @PostMapping("/rating-rebuild") public Map<String,Object> rebuildRating(){return service.recalculateAllBalanceScores();}
  @GetMapping("/hall-of-fame") public List<Map<String,Object>> hall(@RequestParam(required=false) Long seasonId){return service.hall(seasonId);}
  @GetMapping("/riot/status") public Map<String,Object> status(){return Collections.singletonMap("configured",service.riotConfigured());}

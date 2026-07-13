@@ -112,13 +112,16 @@ public class TeamController {
 
  @SuppressWarnings("unchecked")
  private int skill(Map<String,Object> member,String lane){
-  Object raw=member.get("preferredPositions");
+  Object raw=member.get("laneProfiles");
   if(!(raw instanceof List))return 0;
-  List<Object> positions=(List<Object>)raw;
-  for(int i=0;i<positions.size();i++){
-   String pos=String.valueOf(positions.get(i)).toUpperCase(Locale.ROOT);
-   if("FILL".equals(pos))return 1;
-   if(lane.equals(pos))return i==0?2:1;
+  for(Object value:(List<Object>)raw){
+   if(!(value instanceof Map))continue;
+   Map<String,Object> profile=(Map<String,Object>)value;
+   String position=String.valueOf(profile.get("positionCode")).toUpperCase(Locale.ROOT);
+   if(lane.equals(position)){
+    Object score=profile.get("preferenceScore");
+    return score instanceof Number?((Number)score).intValue():0;
+   }
   }
   return 0;
  }

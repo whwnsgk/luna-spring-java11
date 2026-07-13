@@ -57,31 +57,29 @@ public final class PositionCrowdingAdjuster {
 
  @SuppressWarnings("unchecked")
  private static String primaryPosition(Map<String,Object> member){
-  Object raw=member.get("preferredPositions");
+  Object raw=member.get("laneProfiles");
   if(!(raw instanceof List))return "";
-  List<Object> positions=(List<Object>)raw;
-  for(Object value:positions){
-   String position=String.valueOf(value).trim().toUpperCase(Locale.ROOT);
-   if(LANES.contains(position))return position;
-   if("FILL".equals(position))return "FILL";
+  for(Object value:(List<Object>)raw){
+   if(!(value instanceof Map))continue;
+   Map<String,Object> profile=(Map<String,Object>)value;
+   String position=String.valueOf(profile.get("positionCode")).trim().toUpperCase(Locale.ROOT);
+   int preference=number(profile.get("preferenceScore"),0);
+   if(LANES.contains(position)&&preference==2)return position;
   }
   return "";
  }
 
  @SuppressWarnings("unchecked")
  private static double penaltyMultiplier(Map<String,Object> member,String primary){
-  Object raw=member.get("preferredPositions");
+  Object raw=member.get("laneProfiles");
   if(!(raw instanceof List))return 1.0;
-  List<Object> positions=(List<Object>)raw;
-  boolean fill=false;
-  boolean alternative=false;
-  for(Object value:positions){
-   String position=String.valueOf(value).trim().toUpperCase(Locale.ROOT);
-   if("FILL".equals(position))fill=true;
-   else if(LANES.contains(position)&&!position.equals(primary))alternative=true;
+  for(Object value:(List<Object>)raw){
+   if(!(value instanceof Map))continue;
+   Map<String,Object> profile=(Map<String,Object>)value;
+   String position=String.valueOf(profile.get("positionCode")).trim().toUpperCase(Locale.ROOT);
+   int preference=number(profile.get("preferenceScore"),0);
+   if(LANES.contains(position)&&!position.equals(primary)&&preference==1)return 0.70;
   }
-  if(fill)return 0.30;
-  if(alternative)return 0.70;
   return 1.0;
  }
 

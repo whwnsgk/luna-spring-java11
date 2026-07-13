@@ -1,7 +1,7 @@
 console.info("RIFT ARENA build v3.4.8 loaded");
 const S={members:[],selected:[],blue:[],red:[],matches:[],seasons:[],seasonId:null,activeSeasonId:null,drag:null,discord:false,auction:null,draftAdjustments:{}};
 const POS=["TOP","JUNGLE","MID","ADC","SUPPORT","FILL"],PN={TOP:"탑",JUNGLE:"정글",MID:"미드",ADC:"원딜",SUPPORT:"서폿",FILL:"올라운더"};
-document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();setupMainHeroVideo();setupCalcGuideImage();positions.innerHTML=POS.map(x=>`<label><input type="checkbox" name="pos" value="${x}"> ${PN[x]}</label>`).join("");await Promise.all([loadSeasons(),loadDdragonVersion()]);await loadChampions();await all();await discordState();dateNow()});
+document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();setupMainHeroVideo();setupCalcGuideImage();renderLaneProfileEditor();await Promise.all([loadSeasons(),loadDdragonVersion()]);await loadChampions();await all();await discordState();dateNow()});
 function nav(){document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>{document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.querySelectorAll(".nav-btn").forEach(n=>n.classList.toggle("active",n.dataset.page===b.dataset.page));document.getElementById(b.dataset.page).classList.add("active");DraftBgm.sync(b.dataset.page);window.scrollTo({top:0,behavior:"smooth"})})}
 function modals(){document.querySelectorAll(".x,.modal-cancel").forEach(x=>x.onclick=()=>x.closest(".modal").classList.remove("open"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("open")})}
 
@@ -31,9 +31,64 @@ function setupMainHeroVideo(){
  syncButton();
 }
 
+
+function renderLaneProfileEditor(values=[]){
+ const editor=document.getElementById("laneProfileEditor");
+ if(!editor)return;
+ const map=Object.fromEntries((values||[]).map(x=>[x.positionCode,x]));
+ editor.innerHTML=["TOP","JUNGLE","MID","ADC","SUPPORT"].map(lane=>{
+  const value=map[lane]||{};
+  const preference=Number(value.preferenceScore||0);
+  const champions=Number(value.championCount||0);
+  return `<div class="lane-profile-row" data-lane="${lane}">
+    <strong>${PN[lane]}</strong>
+    <label>선호도<select class="lane-preference">
+      <option value="0" ${preference===0?"selected":""}>0 · 절대 안 감</option>
+      <option value="1" ${preference===1?"selected":""}>1 · 2순위</option>
+      <option value="2" ${preference===2?"selected":""}>2 · 1순위</option>
+    </select></label>
+    <label>기용 가능 챔피언 수<input class="lane-champion-count" type="number" min="0" value="${champions}"></label>
+  </div>`;
+ }).join("");
+}
+
+function laneProfilePayload(){
+ return [...document.querySelectorAll(".lane-profile-row")].map(row=>({
+  positionCode:row.dataset.lane,
+  preferenceScore:+row.querySelector(".lane-preference").value,
+  championCount:+row.querySelector(".lane-champion-count").value||0
+ }));
+}
+
+function syncExternalFields(){
+ const external=document.getElementById("externalYn");
+ const game=document.getElementById("gameName");
+ const tag=document.getElementById("tagLine");
+ const lookupButton=document.getElementById("riotLookup");
+ const manual=document.getElementById("manualTierYn");
+ const result=document.getElementById("riotResult");
+ if(!external||!game||!tag||!lookupButton||!manual||!result)return;
+
+ game.disabled=external.checked;
+ tag.disabled=external.checked;
+ lookupButton.disabled=external.checked;
+
+ if(external.checked){
+  game.value="";
+  tag.value="";
+  manual.checked=true;
+  result.textContent="외부인은 Riot ID 없이 저장되며 수동 입력값으로 초기점수를 계산합니다.";
+ }else{
+  result.textContent="Riot ID 확인 후 저장하거나 수동으로 입력할 수 있습니다.";
+ }
+}
+
 function events(){
- addMember.onclick=()=>{memberForm.reset();mid.value="";puuid.value="";memberModal.classList.add("open")};
- bulkRiotRefresh.onclick=refreshAllRiotMembers;
+ addMember.onclick=()=>{
+  memberForm.reset();mid.value="";puuid.value="";externalYn.checked=false;manualTierYn.checked=true;
+  renderLaneProfileEditor();syncExternalFields();memberModal.classList.add("open")
+ };
+ bulkRiotRefresh.onclick=openBulkRiotRefresh;
  ratingRebuild.onclick=async()=>{
   try{
    ratingRebuild.disabled=true;
@@ -48,6 +103,8 @@ function events(){
   }
  };
  memberForm.onsubmit=saveMember;riotLookup.onclick=lookup;
+ externalYn.onchange=syncExternalFields;
+ runBulkRiotRefresh.onclick=refreshAllRiotMembers;
  clear.onclick=()=>{S.selected=[];S.blue=[];S.red=[];S.draftAdjustments={};drawDraft();report()};
  auto.onclick=balance;record.onclick=()=>openMatch(S.blue,S.red);discordCopy.onclick=copyDiscord;discordSend.onclick=sendDiscord;matchForm.onsubmit=saveMatch;forceRecord.onclick=openForceMatch;editMatchButton.onclick=editCurrentMatch;
  seasonFilter.onchange=async()=>{S.seasonId=seasonFilter.value?+seasonFilter.value:null;await refreshSeasonData()};
@@ -97,11 +154,58 @@ async function createSeason(e){
  if(end&&end<start){toast("종료일은 시작일보다 빠를 수 없습니다.");return}
  try{await api("/api/seasons",{method:"POST",body:JSON.stringify({seasonName:name,startDate:start,endDate:end,activeYn:seasonActive.checked})});seasonForm.reset();seasonActive.checked=true;toast("새 시즌을 만들었습니다.");await loadSeasons();renderSeasonList();await refreshSeasonData()}catch(e){toast(e.message)}}
 async function loadMembers(){S.members=await api("/api/members");drawMembers();drawDraft()}
-function drawMembers(){memberList.innerHTML=S.members.length?S.members.map(m=>`<div class="card" ondblclick="memberDetailView(${m.memberId})"><div class="card-top"><div class="member-avatar">${esc((m.realName||"?").slice(0,1))}</div><div><h3>${esc(m.realName)}</h3><p class="card-sub">${esc(m.gameName)}#${esc(m.tagLine)}</p></div></div><div class="tags">${(m.preferredPositions||[]).map(x=>`<span>${PN[x]}</span>`).join("")}</div><div class="member-summary"><div><small>솔랭</small><strong>${m.soloTier||"UNRANKED"} ${m.soloRank||""}</strong></div><div><small>최근 승률</small><strong>${m.recentWinRate||0}%</strong></div><div><small>내전 승률</small><strong>${m.inhouseWinRate||0}%</strong></div></div><p>LP ${m.soloLp||0} · 밸런스 코스트 <b>${m.balanceScore}</b></p><div class="member-card-buttons"><button onclick="event.stopPropagation();memberDetailView(${m.memberId})">상세 보기</button><button class="api-refresh" onclick="event.stopPropagation();riotRefresh(${m.memberId},this)">Riot 갱신</button><button onclick="event.stopPropagation();edit(${m.memberId})">정보 수정</button><button onclick="event.stopPropagation();del(${m.memberId})">멤버 삭제</button></div></div>`).join(""):`<div class="empty">등록된 멤버가 없습니다.</div>`}
-window.edit=id=>{let m=S.members.find(x=>x.memberId===id);mid.value=id;realName.value=m.realName;gameName.value=m.gameName;tagLine.value=m.tagLine;puuid.value=m.puuid||"";tier.value=m.soloTier||"UNRANKED";rank.value=m.soloRank||"";lp.value=m.soloLp||0;score.value=m.balanceScore||"";document.querySelectorAll("[name=pos]").forEach(x=>x.checked=(m.preferredPositions||[]).includes(x.value));memberModal.classList.add("open")};
+function drawMembers(){memberList.innerHTML=S.members.length?S.members.map(m=>`<div class="card" ondblclick="memberDetailView(${m.memberId})"><div class="card-top"><div class="member-avatar">${esc((m.realName||"?").slice(0,1))}</div><div><h3>${esc(m.realName)}</h3><p class="card-sub">${m.externalYn?"외부인":`${esc(m.gameName)}#${esc(m.tagLine)}`}</p></div></div><div class="tags">${(m.preferredPositions||[]).map(x=>`<span>${PN[x]}</span>`).join("")}</div><div class="member-summary"><div><small>솔랭</small><strong>${m.soloTier||"UNRANKED"} ${m.soloRank||""}</strong></div><div><small>최근 승률</small><strong>${m.recentWinRate||0}%</strong></div><div><small>내전 승률</small><strong>${m.inhouseWinRate||0}%</strong></div></div><p>LP ${m.soloLp||0} · 밸런스 코스트 <b>${m.balanceScore}</b></p><div class="member-card-buttons"><button onclick="event.stopPropagation();memberDetailView(${m.memberId})">상세 보기</button>${m.externalYn?`<button class="api-refresh" disabled>외부인</button>`:`<button class="api-refresh" onclick="event.stopPropagation();riotRefresh(${m.memberId},this)">Riot 갱신</button>`}<button onclick="event.stopPropagation();edit(${m.memberId})">정보 수정</button><button onclick="event.stopPropagation();del(${m.memberId})">멤버 삭제</button></div></div>`).join(""):`<div class="empty">등록된 멤버가 없습니다.</div>`}
+window.edit=id=>{
+ let m=S.members.find(x=>x.memberId===id);
+ mid.value=id;
+ realName.value=m.realName||"";
+ gameName.value=m.externalYn?"":(m.gameName||"");
+ tagLine.value=m.externalYn?"":(m.tagLine||"");
+ puuid.value=m.puuid||"";
+ tier.value=m.soloTier||"UNRANKED";
+ rank.value=m.soloRank||"";
+ lp.value=m.soloLp||0;
+ score.value=m.balanceScore||"";
+ externalYn.checked=!!m.externalYn;
+ manualTierYn.checked=!!m.manualTierYn;
+ renderLaneProfileEditor(m.laneProfiles||[]);
+ syncExternalFields();
+ memberModal.classList.add("open")
+};
 window.del=async id=>{if(confirm("삭제할까요?")){await api(`/api/members/${id}`,{method:"DELETE"});toast("삭제했습니다.");await all()}};
-async function saveMember(e){e.preventDefault();let body={realName:realName.value.trim(),gameName:normalizeRiotGameName(gameName.value),tagLine:normalizeRiotTagLine(tagLine.value),puuid:puuid.value||null,soloTier:tier.value,soloRank:rank.value||null,soloLp:+lp.value||0,balanceScore:score.value?+score.value:null,preferredPositions:[...document.querySelectorAll("[name=pos]:checked")].map(x=>x.value)};try{await api(mid.value?`/api/members/${mid.value}`:"/api/members",{method:mid.value?"PUT":"POST",body:JSON.stringify(body)});memberModal.classList.remove("open");toast("저장했습니다.");await all()}catch(e){toast(e.message)}}
+async function saveMember(e){
+ e.preventDefault();
+ const profiles=laneProfilePayload();
+ const primary=profiles.filter(x=>x.preferenceScore===2).length;
+ const secondary=profiles.filter(x=>x.preferenceScore===1).length;
 
+ if(primary!==1){toast("1순위 라인을 정확히 하나 선택해주세요.");return}
+ if(secondary>1){toast("2순위 라인은 최대 하나만 선택할 수 있습니다.");return}
+
+ const body={
+  realName:realName.value.trim(),
+  gameName:normalizeRiotGameName(gameName.value),
+  tagLine:normalizeRiotTagLine(tagLine.value),
+  puuid:puuid.value||null,
+  soloTier:tier.value,
+  soloRank:rank.value||null,
+  soloLp:+lp.value||0,
+  balanceScore:score.value?+score.value:null,
+  externalYn:externalYn.checked,
+  manualTierYn:manualTierYn.checked,
+  laneProfiles:profiles
+ };
+
+ try{
+  await api(mid.value?`/api/members/${mid.value}`:"/api/members",{
+   method:mid.value?"PUT":"POST",
+   body:JSON.stringify(body)
+  });
+  memberModal.classList.remove("open");
+  toast("저장하고 전체 레이팅을 재계산했습니다.");
+  await all()
+ }catch(e){toast(e.message)}
+}
 
 function normalizeRiotGameName(value){
   // 가운데 공백은 Riot ID의 일부이므로 보존합니다.
@@ -117,42 +221,40 @@ function normalizeRiotTagLine(value){
     .toUpperCase();
 }
 
-async function refreshAllRiotMembers(){
- if(!S.members.length){
-   toast("업데이트할 멤버가 없습니다.");
-   return;
- }
- if(!confirm(`등록된 멤버 ${S.members.length}명의 Riot 정보를 순서대로 갱신할까요?\nAPI 호출이 많아 시간이 걸릴 수 있습니다.`))return;
+function openBulkRiotRefresh(){
+ const targets=S.members.filter(m=>!m.externalYn);
+ riotBulkList.innerHTML=targets.length?targets.map(m=>`
+  <div class="riot-bulk-row">
+   <label><input class="riot-target-check" type="checkbox" value="${m.memberId}" checked> <b>${esc(m.realName)}</b> · ${esc(m.gameName)}#${esc(m.tagLine)}</label>
+   <label class="${m.manualTierYn?"manual-tier-warning":""}">
+    <input class="riot-overwrite-check" type="checkbox" value="${m.memberId}" ${m.manualTierYn?"":"checked disabled"}>
+    ${m.manualTierYn?"수동 티어를 실제 Riot 티어로 덮어쓰기":"수동 티어 없음"}
+   </label>
+  </div>`).join(""):`<div class="empty">Riot 갱신 가능한 멤버가 없습니다.</div>`;
+ riotBulkModal.classList.add("open");
+}
 
- const button=document.getElementById("bulkRiotRefresh");
+async function refreshAllRiotMembers(){
+ const memberIds=[...document.querySelectorAll(".riot-target-check:checked")].map(x=>+x.value);
+ const overwriteTierMemberIds=[...document.querySelectorAll(".riot-overwrite-check:checked")].map(x=>+x.value).filter(id=>memberIds.includes(id));
+ if(!memberIds.length){toast("갱신할 멤버를 선택해주세요.");return}
+
+ const button=runBulkRiotRefresh;
  const resultBox=document.getElementById("bulkRiotResult");
  const oldText=button.textContent;
- button.disabled=true;
- button.textContent="일괄 업데이트 중...";
+ button.disabled=true;button.textContent="일괄 업데이트 중...";
  resultBox.classList.remove("hidden");
- resultBox.innerHTML=`<strong>멤버 일괄 업데이트 중</strong><p>Riot API에서 정보를 수집하고 있습니다. 창을 닫지 말아주세요.</p>`;
+ resultBox.innerHTML=`<strong>선택한 ${memberIds.length}명 갱신 중</strong><p>수동 티어 덮어쓰기 선택을 반영하고 있습니다.</p>`;
 
  try{
-   const result=await api("/api/members/riot-refresh-all",{method:"POST"});
-   const failures=(result.results||[]).filter(x=>!x.success);
-
-   resultBox.innerHTML=`
-     <div class="bulk-result-summary">
-       <strong>일괄 업데이트 완료</strong>
-       <span>성공 ${result.successCount}명 · 실패 ${result.failedCount}명 · 전체 ${result.total}명</span>
-     </div>
-     ${failures.length?`<div class="bulk-fail-list">${failures.map(x=>`<p><b>${esc(x.realName)}</b> — ${esc(x.message)}</p>`).join("")}</div>`:`<p>모든 멤버의 Riot 정보가 정상적으로 갱신되었습니다.</p>`}
-   `;
-
-   toast(`일괄 업데이트 완료: 성공 ${result.successCount}명, 실패 ${result.failedCount}명`);
-   await all();
- }catch(e){
-   resultBox.innerHTML=`<strong>일괄 업데이트 실패</strong><p>${esc(e.message)}</p>`;
-   toast(e.message);
- }finally{
-   button.disabled=false;
-   button.textContent=oldText;
- }
+  const result=await api("/api/members/riot-refresh-all",{method:"POST",body:JSON.stringify({memberIds,overwriteTierMemberIds})});
+  const failures=(result.results||[]).filter(x=>!x.success);
+  resultBox.innerHTML=`<div class="bulk-result-summary"><strong>일괄 업데이트 완료</strong><span>성공 ${result.successCount}명 · 실패 ${result.failedCount}명 · 전체 ${result.total}명</span></div>
+   ${(result.results||[]).map(x=>`<p><b>${esc(x.realName)}</b> — ${esc(x.message)}</p>`).join("")}
+   ${failures.length?"":`<p>선택한 멤버를 정상적으로 갱신했습니다.</p>`}`;
+  riotBulkModal.classList.remove("open");toast(`일괄 업데이트 완료: 성공 ${result.successCount}명, 실패 ${result.failedCount}명`);await all()
+ }catch(e){resultBox.innerHTML=`<strong>일괄 업데이트 실패</strong><p>${esc(e.message)}</p>`;toast(e.message)}
+ finally{button.disabled=false;button.textContent=oldText}
 }
 
 async function lookup(){try{let d=await api(`/api/members/riot/lookup?gameName=${encodeURIComponent(normalizeRiotGameName(gameName.value))}&tagLine=${encodeURIComponent(normalizeRiotTagLine(tagLine.value))}`);puuid.value=d.puuid;gameName.value=d.gameName;tagLine.value=d.tagLine;riotResult.textContent=`확인 완료: ${d.gameName}#${d.tagLine}`}catch(e){riotResult.textContent=e.message}}
@@ -771,7 +873,23 @@ async function api(u,o={}){
 function dateNow(){let d=new Date(Date.now()-new Date().getTimezoneOffset()*60000);playedAt.value=d.toISOString().slice(0,16)}
 function fmt(x){return x?new Date(x).toLocaleString("ko-KR"):"-"}function esc(x){return String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 function toast(x){let t=document.getElementById("toast");t.textContent=x;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2800)}
-window.riotRefresh=async (id,button)=>{let oldText=button?button.textContent:"";try{if(button){button.disabled=true;button.textContent="갱신 중..."}toast("Riot API에서 최근 20경기를 수집 중입니다...");await api(`/api/members/${id}/riot-refresh`,{method:"POST"});toast("Riot 정보를 갱신했습니다.");await all();await memberDetailView(id)}catch(e){toast(e.message)}finally{if(button){button.disabled=false;button.textContent=oldText}}};
+window.riotRefresh=async (id,button)=>{
+ const member=S.members.find(x=>+x.memberId===+id);
+ if(member?.externalYn){toast("외부인은 Riot API 갱신 대상이 아닙니다.");return}
+ let overwrite=false;
+ if(member?.manualTierYn){
+  overwrite=confirm("이 멤버는 수동 티어가 고정되어 있습니다.\n확인을 누르면 실제 Riot 티어로 덮어쓰고, 취소하면 수동 티어를 보존한 채 다른 정보만 갱신합니다.");
+ }
+ let oldText=button?button.textContent:"";
+ try{
+  if(button){button.disabled=true;button.textContent="갱신 중..."}
+  toast("Riot API에서 정보를 수집 중입니다...");
+  await api(`/api/members/${id}/riot-refresh?overwriteManualTier=${overwrite}`,{method:"POST"});
+  toast(overwrite?"Riot 티어까지 갱신했습니다.":"수동 티어를 보존하고 Riot 정보를 갱신했습니다.");
+  await all();await memberDetailView(id)
+ }catch(e){toast(e.message)}
+ finally{if(button){button.disabled=false;button.textContent=oldText}}
+};
 window.memberDetailView=async id=>{try{let m=await api(`/api/members/${id}${qs()}`),syn=m.synergy||[],riv=m.rivalry||[],best=syn[0],worst=syn.length?syn[syn.length-1]:null,easy=riv[0],hard=riv.length?riv[riv.length-1]:null,sum=m.inhouseSummary||{};let icon=m.profileIconId?`https://ddragon.leagueoflegends.com/cdn/15.14.1/img/profileicon/${m.profileIconId}.png`:"";memberDetail.dataset.memberId=id;memberDetail.innerHTML=`<div class="memberhero">${icon?`<img class="profileicon" src="${icon}" alt="프로필">`:`<div class="profileicon"></div>`}<div><h2>${esc(m.realName)}</h2><p>${esc(m.gameName)}#${esc(m.tagLine)} · Lv.${m.summonerLevel||"-"}</p><p>${m.soloTier||"UNRANKED"} ${m.soloRank||""} ${m.soloLp||0}LP · 최근 갱신 ${m.riotUpdatedAt?fmt(m.riotUpdatedAt):"없음"}</p></div><button class="btn btn-riot api-refresh" onclick="riotRefresh(${id},this)">Riot 정보 갱신</button></div><h3>솔랭 최근 통계</h3><div class="statgrid"><div class="statbox"><small>최근 20판</small><strong>${m.recentWins||0}승 ${m.recentLosses||0}패</strong></div><div class="statbox"><small>솔랭 승률</small><strong>${m.recentWinRate||0}%</strong></div><div class="statbox"><small>평균 K/D/A</small><strong>${m.recentAvgKills||0}/${m.recentAvgDeaths||0}/${m.recentAvgAssists||0}</strong></div><div class="statbox"><small>모스트 라인</small><strong>${PN[m.mostPosition]||m.mostPosition||"-"}</strong></div></div><h3>내전 상세 통계</h3><div class="statgrid five"><div class="statbox"><small>경기</small><strong>${sum.match_count||0}</strong></div><div class="statbox"><small>승 / 패</small><strong>${sum.win_count||0} / ${sum.loss_count||0}</strong></div><div class="statbox"><small>승률</small><strong>${sum.win_rate||0}%</strong></div><div class="statbox"><small>MVP</small><strong>${sum.mvp_count||0}</strong></div><div class="statbox"><small>최고 연승</small><strong>${sum.best_win_streak||0}</strong></div></div><p class="kda-line">내전 평균 K/D/A <b>${sum.avg_kills||0}/${sum.avg_deaths||0}/${sum.avg_assists||0}</b></p><h3>솔랭 최근 모스트 챔피언</h3><div class="champgrid">${champCards(m.soloChampions)}</div><h3>내전 모스트 챔피언</h3><div class="champgrid">${champCards(m.inhouseChampions)}</div><h3>내전 궁합과 상대 전적</h3><div class="synergygrid four">${relationCard("최고의 궁합",best,"good")}${relationCard("최악의 궁합",worst,"bad")}${relationCard("가장 강한 상대",easy,"good")}${relationCard("가장 어려운 상대",hard,"bad")}</div><h3>최근 내전 5경기</h3><div class="recent-member-matches">${recentMatchCards(m.recentMatches)}</div>`;memberDetailModal.classList.add("open")}catch(e){toast(e.message)}};
 function relationCard(title,x,css){return x?`<div class="syn-card ${css}"><b>${title}</b><p>${esc(x.real_name)} · ${x.games}경기 ${x.wins}승 · ${x.win_rate}%</p></div>`:`<div class="syn-card"><b>${title}</b><p>기록 부족</p></div>`}
 function recentMatchCards(xs){return xs&&xs.length?xs.map(x=>`<div class="recent-member-row ${x.win_yn?"win":"lose"}"><b>${x.win_yn?"승리":"패배"}</b><span>${fmt(x.played_at)} · ${x.season_name||"통산"}</span><span>${x.position_code||"-"} · <span class="champion-inline">${championIcon(x.champion_name||"")}<b>${esc(championLabel(x.champion_name||"-"))}</b></span> ${x.kills}/${x.deaths}/${x.assists}${x.mvp_yn?" 👑":""}</span></div>`).join(""):`<div class="empty">아직 내전 기록이 없습니다.</div>`}
