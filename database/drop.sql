@@ -1,1 +1,3 @@
+DROP TABLE IF EXISTS member_champion_stat CASCADE;
+DROP TABLE IF EXISTS member_riot_snapshot CASCADE;
 DROP TABLE IF EXISTS inhouse_match_player CASCADE;DROP TABLE IF EXISTS inhouse_match CASCADE;DROP TABLE IF EXISTS member_position CASCADE;DROP TABLE IF EXISTS member CASCADE;

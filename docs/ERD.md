@@ -1,11 +1,14 @@
-# ERD
+# Rift Arena 2차 ERD
 ```mermaid
 erDiagram
- MEMBER ||--o{ MEMBER_POSITION : prefers
- MEMBER ||--o{ INHOUSE_MATCH_PLAYER : participates
+ MEMBER ||--o{ MEMBER_POSITION : has
+ MEMBER ||--o{ INHOUSE_MATCH_PLAYER : plays
  INHOUSE_MATCH ||--|{ INHOUSE_MATCH_PLAYER : contains
- MEMBER { bigint member_id PK varchar real_name varchar game_name varchar tag_line varchar puuid varchar solo_tier varchar solo_rank int solo_lp int balance_score boolean active_yn }
- MEMBER_POSITION { bigint member_id PK_FK varchar position_code PK int priority_no }
- INHOUSE_MATCH { bigint match_id PK timestamp played_at varchar winner_team int blue_cost int red_cost varchar memo }
- INHOUSE_MATCH_PLAYER { bigint match_player_id PK bigint match_id FK bigint member_id FK varchar team_code varchar position_code varchar champion_name int kills int deaths int assists boolean win_yn boolean mvp_yn }
+ MEMBER ||--o{ MEMBER_RIOT_SNAPSHOT : snapshots
+ MEMBER ||--o{ MEMBER_CHAMPION_STAT : champion_stats
+ MEMBER { bigint member_id PK varchar game_name varchar tag_line varchar puuid varchar summoner_id integer balance_score }
+ MEMBER_RIOT_SNAPSHOT { bigint snapshot_id PK bigint member_id FK varchar solo_tier numeric recent_win_rate timestamp collected_at }
+ MEMBER_CHAMPION_STAT { bigint member_champion_stat_id PK bigint member_id FK varchar stat_scope varchar champion_name integer games integer wins }
 ```
+
+`SYNERGY`는 별도 테이블에 중복 저장하지 않고 `INHOUSE_MATCH_PLAYER`를 자기조인하여 실시간 계산합니다.

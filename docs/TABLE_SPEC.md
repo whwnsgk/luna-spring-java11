@@ -1,5 +1,12 @@
-# 테이블 명세
-- `member`: 친구 이름, Riot ID, 솔랭 스냅샷, 자동 편성 코스트, 논리 삭제 여부
-- `member_position`: 멤버별 선호 포지션과 우선순위
-- `inhouse_match`: 경기 일시, 승리팀, 양 팀 코스트, 메모
-- `inhouse_match_player`: 경기별 참가자 팀/포지션/챔피언/KDA/승패/MVP
+# 2차 추가 테이블/컬럼
+
+## MEMBER 추가 컬럼
+- `summoner_id`, `summoner_level`: KR 플랫폼 API 식별정보
+- `recent_win_rate`, `recent_avg_kills/deaths/assists`: 최근 솔랭 20경기 집계
+- `most_position`: 최근 솔랭 최다 포지션
+
+## MEMBER_RIOT_SNAPSHOT
+Riot 정보 갱신 시점별 티어와 최근 경기 요약을 보존합니다.
+
+## MEMBER_CHAMPION_STAT
+현재는 `SOLO_RECENT` 범위의 모스트 챔피언 3개를 저장합니다. 내전 모스트는 경기 원장에서 실시간 집계합니다.
