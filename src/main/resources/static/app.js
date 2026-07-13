@@ -1,3 +1,4 @@
+console.info("RIFT ARENA build v3.3.8 loaded");
 const S={members:[],selected:[],blue:[],red:[],matches:[],seasons:[],seasonId:null,activeSeasonId:null,drag:null,discord:false,auction:null};
 const POS=["TOP","JUNGLE","MID","ADC","SUPPORT","FILL"],PN={TOP:"탑",JUNGLE:"정글",MID:"미드",ADC:"원딜",SUPPORT:"서폿",FILL:"올라운더"};
 document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();positions.innerHTML=POS.map(x=>`<label><input type="checkbox" name="pos" value="${x}"> ${PN[x]}</label>`).join("");await loadSeasons();await all();await discordState();dateNow()});
