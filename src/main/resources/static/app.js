@@ -1,7 +1,7 @@
-console.info("RIFT ARENA build v3.4.6 loaded");
-const S={members:[],selected:[],blue:[],red:[],matches:[],seasons:[],seasonId:null,activeSeasonId:null,drag:null,discord:false,auction:null};
+console.info("RIFT ARENA build v3.4.8 loaded");
+const S={members:[],selected:[],blue:[],red:[],matches:[],seasons:[],seasonId:null,activeSeasonId:null,drag:null,discord:false,auction:null,draftAdjustments:{}};
 const POS=["TOP","JUNGLE","MID","ADC","SUPPORT","FILL"],PN={TOP:"탑",JUNGLE:"정글",MID:"미드",ADC:"원딜",SUPPORT:"서폿",FILL:"올라운더"};
-document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();setupMainHeroVideo();positions.innerHTML=POS.map(x=>`<label><input type="checkbox" name="pos" value="${x}"> ${PN[x]}</label>`).join("");await Promise.all([loadSeasons(),loadDdragonVersion()]);await loadChampions();await all();await discordState();dateNow()});
+document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();setupMainHeroVideo();setupCalcGuideImage();positions.innerHTML=POS.map(x=>`<label><input type="checkbox" name="pos" value="${x}"> ${PN[x]}</label>`).join("");await Promise.all([loadSeasons(),loadDdragonVersion()]);await loadChampions();await all();await discordState();dateNow()});
 function nav(){document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>{document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.querySelectorAll(".nav-btn").forEach(n=>n.classList.toggle("active",n.dataset.page===b.dataset.page));document.getElementById(b.dataset.page).classList.add("active");DraftBgm.sync(b.dataset.page);window.scrollTo({top:0,behavior:"smooth"})})}
 function modals(){document.querySelectorAll(".x,.modal-cancel").forEach(x=>x.onclick=()=>x.closest(".modal").classList.remove("open"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("open")})}
 
@@ -34,8 +34,21 @@ function setupMainHeroVideo(){
 function events(){
  addMember.onclick=()=>{memberForm.reset();mid.value="";puuid.value="";memberModal.classList.add("open")};
  bulkRiotRefresh.onclick=refreshAllRiotMembers;
+ ratingRebuild.onclick=async()=>{
+  try{
+   ratingRebuild.disabled=true;
+   ratingRebuild.textContent="재계산 중...";
+   const result=await api("/api/members/rating-rebuild",{method:"POST"});
+   toast(`${result.memberCount||0}명 · ${result.matchCount||0}경기 레이팅 재계산 완료`);
+   await all();
+  }catch(e){toast(e.message)}
+  finally{
+   ratingRebuild.disabled=false;
+   ratingRebuild.textContent="레이팅 전체 재계산";
+  }
+ };
  memberForm.onsubmit=saveMember;riotLookup.onclick=lookup;
- clear.onclick=()=>{S.selected=[];S.blue=[];S.red=[];drawDraft();report()};
+ clear.onclick=()=>{S.selected=[];S.blue=[];S.red=[];S.draftAdjustments={};drawDraft();report()};
  auto.onclick=balance;record.onclick=()=>openMatch(S.blue,S.red);discordCopy.onclick=copyDiscord;discordSend.onclick=sendDiscord;matchForm.onsubmit=saveMatch;forceRecord.onclick=openForceMatch;editMatchButton.onclick=editCurrentMatch;
  seasonFilter.onchange=async()=>{S.seasonId=seasonFilter.value?+seasonFilter.value:null;await refreshSeasonData()};
  manageSeason.onclick=()=>{renderSeasonList();seasonModal.classList.add("open")};seasonForm.onsubmit=createSeason;
@@ -143,7 +156,7 @@ async function refreshAllRiotMembers(){
 }
 
 async function lookup(){try{let d=await api(`/api/members/riot/lookup?gameName=${encodeURIComponent(normalizeRiotGameName(gameName.value))}&tagLine=${encodeURIComponent(normalizeRiotTagLine(tagLine.value))}`);puuid.value=d.puuid;gameName.value=d.gameName;tagLine.value=d.tagLine;riotResult.textContent=`확인 완료: ${d.gameName}#${d.tagLine}`}catch(e){riotResult.textContent=e.message}}
-function chip(m){return `<div class="memberchip" draggable="true" data-id="${m.memberId}"><span><b>${esc(m.realName)}</b><small> ${m.soloTier||"UNRANKED"} · ${(m.preferredPositions||[]).map(x=>PN[x]).join("/")}</small></span><strong>${m.balanceScore}</strong></div>`}
+function chip(m){const a=S.draftAdjustments?.[m.memberId];const score=a?.effectiveBalanceScore??m.balanceScore;const penalty=a?.positionCrowdingPenalty||0;return `<div class="memberchip" draggable="true" data-id="${m.memberId}"><span><b>${esc(m.realName)}</b><small> ${m.soloTier||"UNRANKED"} · ${(m.preferredPositions||[]).map(x=>PN[x]).join("/")}${penalty?` · 과밀 -${penalty}`:""}</small></span><strong>${score}</strong></div>`}
 function drawDraft(){
  let used=new Set([...S.selected,...S.blue,...S.red].map(Number));
  pool.innerHTML=S.members.filter(m=>!used.has(+m.memberId)).map(chip).join("")||`<div class="empty">남은 멤버 없음</div>`;
@@ -164,8 +177,8 @@ function drawDraft(){
 }
 function slots(ids,n){return ids.map(id=>chip(S.members.find(x=>x.memberId===id))).join("")+Array.from({length:n-ids.length},()=>`<div class="empty">빈 슬롯</div>`).join("")}
 function move(id,zone){if(!id)return;S.selected=S.selected.filter(x=>x!==id);S.blue=S.blue.filter(x=>x!==id);S.red=S.red.filter(x=>x!==id);if(zone==="pool"){}else if(zone==="selected"&&S.selected.length<10)S.selected.push(id);else if(zone==="blue"&&S.blue.length<5)S.blue.push(id);else if(zone==="red"&&S.red.length<5)S.red.push(id);drawDraft();evaluate()}
-async function balance(){let ids=[...new Set([...S.selected,...S.blue,...S.red])];try{let r=await api("/api/team-balance/auto",{method:"POST",body:JSON.stringify({memberIds:ids})});S.selected=[];S.blue=r.blueTeam.map(x=>x.memberId);S.red=r.redTeam.map(x=>x.memberId);drawDraft();showReport(r)}catch(e){toast(e.message)}}
-async function evaluate(){if(S.blue.length===5&&S.red.length===5){let r=await api("/api/team-balance/evaluate",{method:"POST",body:JSON.stringify({blueMemberIds:S.blue,redMemberIds:S.red})});showReport(r)}else report()}
+async function balance(){let ids=[...new Set([...S.selected,...S.blue,...S.red])];try{let r=await api("/api/team-balance/auto",{method:"POST",body:JSON.stringify({memberIds:ids})});S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));S.selected=[];S.blue=r.blueTeam.map(x=>x.memberId);S.red=r.redTeam.map(x=>x.memberId);drawDraft();showReport(r)}catch(e){toast(e.message)}}
+async function evaluate(){if(S.blue.length===5&&S.red.length===5){let r=await api("/api/team-balance/evaluate",{method:"POST",body:JSON.stringify({blueMemberIds:S.blue,redMemberIds:S.red})});S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));drawDraft();showReport(r)}else{S.draftAdjustments={};report()}}
 function showReport(r){bcost.textContent=r.blueCost;rcost.textContent=r.redCost;bwin.textContent=r.blueExpectedWinRate+"%";rwin.textContent=r.redExpectedWinRate+"%";message.textContent=r.algorithmMessage+" · 차이 "+r.costDifference}
 function report(){bcost.textContent=rcost.textContent="0";bwin.textContent=rwin.textContent="50.0%";message.textContent="10명을 선택해주세요."}
 function openMatch(b,r){
@@ -313,6 +326,28 @@ async function ranking(){let r=await api("/api/matches/ranking"+qs());document.g
    COMPLETE/disconnect   -> stop
    ========================================================= */
 
+
+function setupCalcGuideImage(){
+ const image=document.getElementById("calcGuideImage");
+ const placeholder=document.getElementById("calcGuidePlaceholder");
+ if(!image||!placeholder)return;
+ const candidates=["/media/cal-image.png","/media/cal-image.jpg","/media/cal-image.jpeg","/media/cal-image.webp"];
+ let index=0;
+ const tryNext=()=>{
+   if(index>=candidates.length){
+     image.classList.add("hidden");
+     placeholder.classList.remove("hidden");
+     return;
+   }
+   image.src=candidates[index++];
+ };
+ image.onload=()=>{
+   placeholder.classList.add("hidden");
+   image.classList.remove("hidden");
+ };
+ image.onerror=()=>tryNext();
+ tryNext();
+}
 const DraftBgm=(()=>{
  const audio=new Audio("/audio/draft-main.mp3");
  audio.loop=true;
@@ -562,7 +597,7 @@ function openPage(pageName){document.querySelectorAll(".page").forEach(p=>p.clas
 function auctionMemberIds(){return [...new Set([...S.selected,...S.blue,...S.red].map(Number))]}
 function findMember(id){return S.members.find(m=>+m.memberId===+id)}
 function loadAuctionPlayersFromDraft(){const ids=auctionMemberIds();if(ids.length!==10){toast("내전 짜기에서 참가자 10명을 먼저 선택해주세요.");return}S.auction={setupMemberIds:ids,status:"SETUP"};renderAuctionSetup();toast("참가자 10명을 불러왔습니다.")}
-function renderAuctionSetup(){const ids=(S.auction?.setupMemberIds)||auctionMemberIds(),ms=ids.map(findMember).filter(Boolean);auctionPlayerCount.textContent=`${ms.length} / 10명`;auctionPlayers.innerHTML=ms.length?ms.map(m=>`<div class="auction-player-chip"><span class="mini-avatar">${esc((m.realName||"?").slice(0,1))}</span><div><b>${esc(m.realName)}</b><small>${esc(m.soloTier||"UNRANKED")} · ${m.balanceScore||1000}</small></div></div>`).join(""):`<div class="empty">참가자 10명을 불러오거나 방 코드로 참가하세요.</div>`;const opts=`<option value="">호스트 선택</option>`+ms.map(m=>`<option value="${m.memberId}">${esc(m.realName)} · ${m.balanceScore||1000}</option>`).join("");if(blueHostSelect.options.length!==ms.length+1){blueHostSelect.innerHTML=opts;redHostSelect.innerHTML=opts;const so=[...ms].sort((a,b)=>(b.balanceScore||0)-(a.balanceScore||0));if(so.length===10){blueHostSelect.value=so[0].memberId;redHostSelect.value=so[1].memberId}}auctionStart.disabled=ms.length!==10;auctionCountdownSec.value=60;soundVolume.value=Math.round(AuctionSound.volume*100);updateSoundButton()}
+function renderAuctionSetup(){const ids=(S.auction?.setupMemberIds)||auctionMemberIds(),ms=ids.map(findMember).filter(Boolean);auctionPlayerCount.textContent=`${ms.length} / 10명`;auctionPlayers.innerHTML=ms.length?ms.map(m=>`<div class="auction-player-chip"><span class="mini-avatar">${esc((m.realName||"?").slice(0,1))}</span><div><b>${esc(m.realName)}</b><small>${m.assignedPosition?`${PN[m.assignedPosition]||m.assignedPosition} · `:""}${esc(m.soloTier||"UNRANKED")} · ${m.balanceScore||1000}</small></div></div>`).join(""):`<div class="empty">참가자 10명을 불러오거나 방 코드로 참가하세요.</div>`;const opts=`<option value="">호스트 선택</option>`+ms.map(m=>`<option value="${m.memberId}">${esc(m.realName)} · ${m.balanceScore||1000}</option>`).join("");if(blueHostSelect.options.length!==ms.length+1){blueHostSelect.innerHTML=opts;redHostSelect.innerHTML=opts;const so=[...ms].sort((a,b)=>(b.balanceScore||0)-(a.balanceScore||0));if(so.length===10){blueHostSelect.value=so[0].memberId;redHostSelect.value=so[1].memberId}}auctionStart.disabled=ms.length!==10;auctionCountdownSec.value=60;soundVolume.value=Math.round(AuctionSound.volume*100);updateSoundButton()}
 async function createRealtimeRoom(){AuctionSound.ensure();const ids=(S.auction?.setupMemberIds)||auctionMemberIds();try{const st=await api('/api/auctions/rooms',{method:'POST',body:JSON.stringify({memberIds:ids,blueHostId:+blueHostSelect.value,redHostId:+redHostSelect.value,baseToken:+auctionBaseToken.value||1000,adjustRate:+auctionAdjustRate.value||.5})});connectAuction(st.roomCode,'DIRECTOR');toast(`경매방 ${st.roomCode} 생성 완료 · 진행자로 접속했습니다.`)}catch(e){toast(e.message);AuctionSound.error()}}
 function joinRealtimeRoom(){const code=auctionJoinCode.value.trim().toUpperCase();if(code.length!==6){toast('6자리 방 코드를 입력하세요.');return}connectAuction(code,auctionJoinRole.value)}
 function connectAuction(code,role){

@@ -18,4 +18,7 @@ public interface MemberMapper {
  List<Map<String,Object>> rivalry(@Param("memberId") Long memberId,@Param("seasonId") Long seasonId);
  List<Map<String,Object>> recentMatches(@Param("memberId") Long memberId,@Param("seasonId") Long seasonId);
  Map<String,Object> inhouseSummary(@Param("memberId") Long memberId,@Param("seasonId") Long seasonId);
+ List<Map<String,Object>> ratingChampionCounts();
+ List<Map<String,Object>> ratingMatches();
+ List<Map<String,Object>> ratingPlayers();
 }

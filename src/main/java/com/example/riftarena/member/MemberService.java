@@ -97,65 +97,297 @@ public class MemberService {
   return d;
  }
  public void recalculateBalanceScores(Collection<Long> memberIds){
-  if(memberIds==null)return;
-  for(Long id:new LinkedHashSet<>(memberIds))if(id!=null)recalculateBalanceScore(id);
+  if(memberIds==null||memberIds.isEmpty())return;
+  recalculateAllBalanceScores();
  }
 
  @Transactional public int recalculateBalanceScore(Long id){
+  recalculateAllBalanceScores();
   Map<String,Object> member=find(id);
-  Map<String,Object> summary=mapper.inhouseSummary(id,null);
-  List<Map<String,Object>> topChampions=mapper.championStats(id);
+  return intValue(member,"balanceScore","balance_score");
+ }
 
-  int rankBase=rankScore(
-    textValue(member,"soloTier","solo_tier"),
-    textValue(member,"soloRank","solo_rank"),
-    intValue(member,"soloLp","solo_lp")
-  );
-
-  double recentWinRate=doubleValue(member,"recentWinRate","recent_win_rate");
-  double kills=doubleValue(member,"recentAvgKills","recent_avg_kills");
-  double deaths=doubleValue(member,"recentAvgDeaths","recent_avg_deaths");
-  double assists=doubleValue(member,"recentAvgAssists","recent_avg_assists");
-  double kda=(kills+assists)/Math.max(1.0,deaths);
-
-  int inhouseGames=intValue(summary,"matchCount","match_count");
-  double inhouseWinRate=doubleValue(summary,"winRate","win_rate");
-  int mvpCount=intValue(summary,"mvpCount","mvp_count");
-
-  int recentWinAdj=(int)Math.round(clamp((recentWinRate-50.0)*4.0,-120,120));
-  int kdaAdj=(int)Math.round(clamp((kda-2.5)*45.0,-100,150));
-
-  int championAdj=0;
-  if(topChampions!=null&&!topChampions.isEmpty()){
-   Map<String,Object> top=topChampions.get(0);
-   int games=intValue(top,"games");
-   double winRate=doubleValue(top,"winRate","win_rate");
-   double confidence=Math.min(1.0,games/10.0);
-   championAdj=(int)Math.round(
-     clamp((winRate-50.0)*1.2*confidence+Math.min(games,10)*3.0,-60,90)
-   );
+ /**
+  * 수정본 R 로직을 Java로 옮긴 전체 레이팅 재계산.
+  * 1) tier_score + lane_score + champ_score로 최초 Elo 생성
+  * 2) 통산 승률/KDA와 5개 항목 Outlier 보너스 반영
+  * 3) 기존 경기를 played_at, match_id 순으로 재생
+  * 4) 맞라이너 Elo와 양 팀 평균 Elo를 함께 비교하여 K=32 갱신
+  */
+ @Transactional public Map<String,Object> recalculateAllBalanceScores(){
+  List<Map<String,Object>> active=list();
+  Map<String,Object> result=new LinkedHashMap<>();
+  if(active.isEmpty()){
+   result.put("memberCount",0);
+   result.put("matchCount",0);
+   return result;
   }
 
-  double inhouseConfidence=Math.min(1.0,inhouseGames/20.0);
-  int inhouseWinAdj=(int)Math.round(
-    clamp((inhouseWinRate-50.0)*3.0*inhouseConfidence,-150,150)
-  );
-  int gamesAdj=Math.min(inhouseGames,50)*2;
-  int mvpAdj=Math.min(mvpCount,10)*12;
+  final String[] lanes={"TOP","JUNGLE","MID","ADC","SUPPORT"};
+  Map<Long,Map<String,Integer>> champCounts=new HashMap<>();
+  for(Map<String,Object> row:mapper.ratingChampionCounts()){
+   Long memberId=longValue(row,"memberId","member_id");
+   String lane=textValue(row,"positionCode","position_code").toUpperCase(Locale.ROOT);
+   int count=intValue(row,"championCount","champion_count");
+   champCounts.computeIfAbsent(memberId,k->new HashMap<>()).put(lane,count);
+  }
 
-  int score=(int)Math.round(clamp(
-    rankBase
-      +recentWinAdj
-      +kdaAdj
-      +championAdj
-      +inhouseWinAdj
-      +gamesAdj
-      +mvpAdj,
-    600,2400
-  ));
+  int n=active.size();
+  double[] tier=new double[n];
+  double[] laneScore=new double[n];
+  double[] champScore=new double[n];
+  double[] gameWinRate=new double[n];
+  double[] gameKda=new double[n];
 
-  mapper.updateBalanceScore(id,score);
-  return score;
+  Map<String,Double> laneDenom=new HashMap<>();
+  for(String lane:lanes)laneDenom.put(lane,0.0);
+
+  List<Map<String,Double>> weightsByMember=new ArrayList<>();
+  for(int i=0;i<n;i++){
+   Map<String,Object> member=active.get(i);
+   Map<String,Double> weights=new HashMap<>();
+   for(String lane:lanes)weights.put(lane,0.0);
+
+   @SuppressWarnings("unchecked")
+   List<String> positions=(List<String>)member.get("preferredPositions");
+   if(positions!=null){
+    int priority=0;
+    for(String raw:positions){
+     String pos=raw==null?"":raw.toUpperCase(Locale.ROOT);
+     if("FILL".equals(pos)){
+      for(String lane:lanes)weights.put(lane,Math.max(weights.get(lane),0.5));
+     }else if(weights.containsKey(pos)){
+      weights.put(pos,Math.max(weights.get(pos),priority==0?1.0:0.5));
+     }
+     priority++;
+    }
+   }
+   weightsByMember.add(weights);
+   for(String lane:lanes)laneDenom.put(lane,laneDenom.get(lane)+weights.get(lane));
+  }
+
+  for(int i=0;i<n;i++){
+   Map<String,Object> member=active.get(i);
+   Long memberId=longValue(member,"memberId","member_id");
+   tier[i]=initialTierScore(
+     textValue(member,"soloTier","solo_tier"),
+     textValue(member,"soloRank","solo_rank")
+   );
+
+   Map<String,Object> summary=mapper.inhouseSummary(memberId,null);
+   if(summary==null)summary=Collections.emptyMap();
+
+   int matchCount=intValue(summary,"matchCount","match_count");
+   double winRate=doubleValue(summary,"winRate","win_rate");
+   double avgKills=doubleValue(summary,"avgKills","avg_kills");
+   double avgDeaths=doubleValue(summary,"avgDeaths","avg_deaths");
+   double avgAssists=doubleValue(summary,"avgAssists","avg_assists");
+
+   // 경기 기록이 없는 멤버는 수정본의 공통 초기값을 사용합니다.
+   gameWinRate[i]=matchCount>0?winRate/100.0:0.5;
+   gameKda[i]=matchCount>0?(avgKills+avgAssists)/Math.max(1.0,avgDeaths):3.0;
+
+   double laneTotal=0.0;
+   double champTotal=0.0;
+   Map<String,Double> weights=weightsByMember.get(i);
+   Map<String,Integer> counts=champCounts.getOrDefault(memberId,Collections.emptyMap());
+
+   for(String lane:lanes){
+    double denom=laneDenom.get(lane);
+    if(denom>0)laneTotal+=500.0*weights.get(lane)/denom;
+
+    int championCount=counts.getOrDefault(lane,0);
+    champTotal+=Math.max(
+      championCount,
+      7.0+Math.log(Math.max(championCount-6,1))
+    );
+   }
+   laneScore[i]=laneTotal;
+   champScore[i]=champTotal;
+  }
+
+  int topCount=(int)Math.ceil(n*0.1);
+  double tierCut=topThreshold(tier,topCount);
+  double laneCut=topThreshold(laneScore,topCount);
+  double champCut=topThreshold(champScore,topCount);
+  double winRateCut=topThreshold(gameWinRate,topCount);
+  double kdaCut=topThreshold(gameKda,topCount);
+
+  double[] zWinRate=zScores(gameWinRate);
+  double[] zKda=zScores(gameKda);
+  Map<Long,Double> ratings=new LinkedHashMap<>();
+
+  for(int i=0;i<n;i++){
+   int outlier=0;
+   if(isTopPercentile(tier[i],tierCut))outlier++;
+   if(isTopPercentile(laneScore[i],laneCut))outlier++;
+   if(isTopPercentile(champScore[i],champCut))outlier++;
+   if(isTopPercentile(gameWinRate[i],winRateCut))outlier++;
+   if(isTopPercentile(gameKda[i],kdaCut))outlier++;
+
+   /*
+    * 친구분 최종 설명 반영:
+    * 1) 최초 기반값은 tier_score + lane_score + champ_score
+    * 2) 데이터가 쌓인 뒤에는 통산 승률/KDA와 Outlier 보너스를 추가
+    *
+    * 승률/KDA는 서로 단위가 다르므로 z-score로 보정하고,
+    * 기존 가중치 비율(승률 0.25 : KDA 0.15)을 100 : 60점으로 환산합니다.
+    */
+   double initialRating=
+     tier[i]
+     +laneScore[i]
+     +champScore[i]
+     +zWinRate[i]*100.0
+     +zKda[i]*60.0
+     +outlier*20.0;
+
+   Long memberId=longValue(active.get(i),"memberId","member_id");
+   ratings.put(memberId,initialRating);
+  }
+
+  Map<Long,List<Map<String,Object>>> playersByMatch=new LinkedHashMap<>();
+  for(Map<String,Object> player:mapper.ratingPlayers()){
+   Long matchId=longValue(player,"matchId","match_id");
+   playersByMatch.computeIfAbsent(matchId,k->new ArrayList<>()).add(player);
+  }
+
+  int appliedMatches=0;
+  for(Map<String,Object> match:mapper.ratingMatches()){
+   Long matchId=longValue(match,"matchId","match_id");
+   String winner=textValue(match,"winnerTeam","winner_team").toUpperCase(Locale.ROOT);
+   if(!"BLUE".equals(winner)&&!"RED".equals(winner))continue;
+
+   List<Map<String,Object>> players=playersByMatch.get(matchId);
+   if(players==null||players.isEmpty())continue;
+
+   Map<String,Long> blue=new HashMap<>();
+   Map<String,Long> red=new HashMap<>();
+   for(Map<String,Object> player:players){
+    Long memberId=longValue(player,"memberId","member_id");
+    String team=textValue(player,"teamCode","team_code").toUpperCase(Locale.ROOT);
+    String lane=textValue(player,"positionCode","position_code").toUpperCase(Locale.ROOT);
+    if(!ratings.containsKey(memberId))continue;
+    if("BLUE".equals(team))blue.put(lane,memberId);
+    else if("RED".equals(team))red.put(lane,memberId);
+   }
+
+   if(blue.size()!=5||red.size()!=5)continue;
+
+   double blueTeamAverage=teamAverageRating(blue.values(),ratings);
+   double redTeamAverage=teamAverageRating(red.values(),ratings);
+   double expectedBlueTeam=expectedScore(blueTeamAverage,redTeamAverage);
+   double blueResult="BLUE".equals(winner)?1.0:0.0;
+
+   boolean applied=false;
+   Map<Long,Double> nextRatings=new LinkedHashMap<>();
+
+   for(String lane:lanes){
+    Long blueId=blue.get(lane);
+    Long redId=red.get(lane);
+    if(blueId==null||redId==null)continue;
+
+    double blueRating=ratings.get(blueId);
+    double redRating=ratings.get(redId);
+
+    // 맞라이너 Elo와 양 팀 평균 Elo를 반반씩 반영합니다.
+    double expectedBlueLane=expectedScore(blueRating,redRating);
+    double expectedBlue=(expectedBlueLane+expectedBlueTeam)/2.0;
+
+    double blueDelta=32.0*(blueResult-expectedBlue);
+    double redDelta=32.0*((1.0-blueResult)-(1.0-expectedBlue));
+
+    nextRatings.put(blueId,blueRating+blueDelta);
+    nextRatings.put(redId,redRating+redDelta);
+    applied=true;
+   }
+
+   // 한 경기 안에서는 모든 라인이 경기 시작 전 점수를 기준으로 계산됩니다.
+   if(applied){
+    ratings.putAll(nextRatings);
+    appliedMatches++;
+   }
+  }
+
+  for(Map.Entry<Long,Double> entry:ratings.entrySet()){
+   mapper.updateBalanceScore(entry.getKey(),(int)Math.round(entry.getValue()));
+  }
+
+  result.put("memberCount",ratings.size());
+  result.put("matchCount",appliedMatches);
+  result.put("message","초기 합산 점수, 통산 승률/KDA, 팀·맞라인 Elo를 반영해 전체 재계산했습니다.");
+  return result;
+ }
+
+ private double expectedScore(double a,double b){
+  return 1.0/(1.0+Math.pow(10.0,(b-a)/400.0));
+ }
+
+ private double teamAverageRating(Collection<Long> memberIds,Map<Long,Double> ratings){
+  if(memberIds==null||memberIds.isEmpty())return 0.0;
+  double total=0.0;
+  int count=0;
+  for(Long memberId:memberIds){
+   Double rating=ratings.get(memberId);
+   if(rating!=null){
+    total+=rating;
+    count++;
+   }
+  }
+  return count==0?0.0:total/count;
+ }
+
+ private int initialTierScore(String tier,String rank){
+  String t=tier==null?"UNRANKED":tier.toUpperCase(Locale.ROOT);
+  Map<String,Integer> bases=new HashMap<>();
+  bases.put("IRON",0);bases.put("BRONZE",50);bases.put("SILVER",100);
+  bases.put("GOLD",200);bases.put("PLATINUM",300);bases.put("EMERALD",400);
+  bases.put("DIAMOND",500);bases.put("MASTER",600);bases.put("GRANDMASTER",700);
+  bases.put("CHALLENGER",800);bases.put("UNRANKED",100);
+
+  Map<String,Integer> ranks=new HashMap<>();
+  ranks.put("IV",0);ranks.put("III",25);ranks.put("II",50);ranks.put("I",75);
+  return bases.getOrDefault(t,100)+ranks.getOrDefault(rank,0);
+ }
+
+ private double[] zScores(double[] values){
+  double[] out=new double[values.length];
+  if(values.length<2)return out;
+
+  double mean=0.0;
+  for(double value:values)mean+=value;
+  mean/=values.length;
+
+  double sum=0.0;
+  for(double value:values){
+   double diff=value-mean;
+   sum+=diff*diff;
+  }
+  double sd=Math.sqrt(sum/(values.length-1));
+  if(sd==0.0||Double.isNaN(sd))return out;
+
+  for(int i=0;i<values.length;i++)out[i]=(values[i]-mean)/sd;
+  return out;
+ }
+
+ private double topThreshold(double[] values,int topCount){
+  double[] copy=Arrays.copyOf(values,values.length);
+  Arrays.sort(copy);
+  int index=Math.max(0,copy.length-Math.max(1,topCount));
+  return copy[index];
+ }
+
+ /**
+  * R의 is_top_percentile(value, n_top)와 같은 용도입니다.
+  * 컷오프와 동점인 멤버도 모두 상위 그룹에 포함합니다.
+  */
+ private boolean isTopPercentile(double value,double threshold){
+  return Double.compare(value,threshold)>=0;
+ }
+
+ private Long longValue(Map<String,Object> map,String...keys){
+  Object value=firstValue(map,keys);
+  if(value instanceof Number)return ((Number)value).longValue();
+  return value==null?null:Long.valueOf(String.valueOf(value));
  }
 
  @Transactional public void delete(Long id){find(id);mapper.deactivate(id);}

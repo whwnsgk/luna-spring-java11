@@ -12,6 +12,7 @@ public class MemberController {
  @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void delete(@PathVariable Long id){service.delete(id);}
  @PostMapping("/{id}/riot-refresh") public Map<String,Object> refresh(@PathVariable Long id){return service.refreshRiot(id);}
  @PostMapping("/riot-refresh-all") public Map<String,Object> refreshAll(){return service.refreshAllRiot();}
+ @PostMapping("/rating-rebuild") public Map<String,Object> rebuildRating(){return service.recalculateAllBalanceScores();}
  @GetMapping("/hall-of-fame") public List<Map<String,Object>> hall(@RequestParam(required=false) Long seasonId){return service.hall(seasonId);}
  @GetMapping("/riot/status") public Map<String,Object> status(){return Collections.singletonMap("configured",service.riotConfigured());}
  @GetMapping("/riot/lookup") public Map<String,Object> lookup(@RequestParam String gameName,@RequestParam String tagLine){return service.lookup(gameName,tagLine);}

@@ -1,6 +1,6 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.4.6"></head>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.4.11"></head>
 <body>
-<header><div class="brand"><span class="brand-mark">RA</span><span>RIFT ARENA <small>롤 내전 관리실</small></span></div><nav><button class="nav-btn active" data-page="home">대시보드</button><button class="nav-btn" data-page="members">멤버</button><button class="nav-btn" data-page="draft">내전 짜기</button><button class="nav-btn" data-page="auction">토큰 경매</button><button class="nav-btn" data-page="matches">경기 기록</button><button class="nav-btn" data-page="stats">통계</button></nav></header>
+<header><div class="brand"><span class="brand-mark">RA</span><span>RIFT ARENA <small>롤 내전 관리실</small></span></div><nav><button class="nav-btn active" data-page="home">대시보드</button><button class="nav-btn" data-page="members">멤버</button><button class="nav-btn" data-page="draft">내전 짜기</button><button class="nav-btn" data-page="auction">토큰 경매</button><button class="nav-btn" data-page="matches">경기 기록</button><button class="nav-btn" data-page="stats">통계</button><button class="nav-btn" data-page="calc">산출근거</button></nav></header>
 <div class="seasonbar"><div><span>시즌</span><select id="seasonFilter"></select></div><button id="manageSeason" class="btn btn-ghost btn-small">시즌 관리</button></div>
 <main>
 <section id="home" class="page active">
@@ -14,9 +14,9 @@
 
     <div class="main-media-content">
       <b>IN-HOUSE CONTROL ROOM</b>
-      <h1>적이었을떈 날 패던놈들이,<br>우리팀에 오니 병신이되었다.</h1>
-      <blockquote class="main-quote">“이원우 선생의 명언,<br>2026.07.01.”</blockquote>
-      <p>이런 피해자가 나오지 않기 위한 공정한 관리 시스템.</p>
+      <h1>밸런스를 공정하게,<br>전적은 확실하게.</h1>
+      <blockquote class="main-quote">“적이었을 땐 날 패던 놈들이,<br>우리 팀에 오니까 병신이 된다.”</blockquote>
+      <p>멤버 등록, 10인 팀 편성, 경기 결과 입력과 통계를 한곳에서 관리합니다.</p>
       <div class="main-media-actions">
         <button class="btn btn-primary" data-page="draft">내전 짜기</button>
         <button class="btn btn-ghost" data-page="members">멤버 보기</button>
@@ -28,14 +28,98 @@
 
   <div class="legacy-home-content">
 
-<div class="hero"><div><b>IN-HOUSE CONTROL ROOM</b><h1>누구도 소외되지 않게,<br>정호님도 즐겁게 내전할수 있게.</h1><p>왕관의 무게를 견뎌야죠.</p><button class="btn btn-primary" data-page="draft">오늘의 내전 짜기</button></div><div class="orb">5 : 5</div></div><div id="metrics" class="metrics"></div><h2 class="section-title">시즌 어워드</h2><div id="awards" class="award-grid"></div><div class="twocol"><article><h2>최근 경기</h2><div id="recent"></div></article><article><h2>승률 명예의 전당</h2><div id="hall"></div></article></div>
+<div class="hero"><div><b>IN-HOUSE CONTROL ROOM</b><h1>밸런스는 공정하게,<br>전적은 확실하게.</h1><p>멤버 등록, 10인 팀 편성, 경기 결과 수동 입력과 통계를 한 곳에서 관리합니다.</p><button class="btn btn-primary" data-page="draft">오늘의 내전 짜기</button></div><div class="orb">5 : 5</div></div><div id="metrics" class="metrics"></div><h2 class="section-title">시즌 어워드</h2><div id="awards" class="award-grid"></div><div class="twocol"><article><h2>최근 경기</h2><div id="recent"></div></article><article><h2>승률 명예의 전당</h2><div id="hall"></div></article></div>
   
+  </div>
+</section>
+<section id="calc" class="page calc-page">
+  <div class="heading calc-heading">
+    <div>
+      <b>RATING REFERENCE</b>
+      <h1>산출근거</h1>
+      <p>현재 밸런스 코스트와 팀 자동 배정이 어떤 기준으로 계산되는지 한 페이지에서 확인할 수 있습니다.</p>
+    </div>
+  </div>
+
+  <div class="calc-layout">
+    <article class="calc-media-card">
+      <div class="calc-image-frame">
+        <img id="calcGuideImage" class="calc-guide-image hidden" alt="산출 근거 참고 이미지">
+        <div id="calcGuidePlaceholder" class="calc-placeholder">
+          <strong>cal-image 파일을 넣어주세요</strong>
+          <p><code>src/main/resources/static/media/cal-image.png</code><br>또는 <code>cal-image.jpg</code>, <code>cal-image.jpeg</code>, <code>cal-image.webp</code></p>
+        </div>
+      </div>
+      <p class="calc-image-caption">“그 밸런스는 이상해!” <span>- 사쿠라바 에마 -</span></p>
+    </article>
+
+    <article class="calc-copy-card">
+      <h2>레이팅 계산 근거</h2>
+      <div class="calc-copy-section">
+        <h3>1. 초기 파워 점수</h3>
+        <ul>
+          <li><b>티어 점수 30%</b> : 현재 솔로 랭크 티어/티어 단계(I, II, III, IV)를 점수화합니다.</li>
+          <li><b>라인 적합도 15%</b> : 선호 포지션 1순위는 2점, 2·3순위와 FILL은 1점으로 보고 5개 라인에 분배합니다.</li>
+          <li><b>챔피언 폭 15%</b> : 경기 기록 기준으로 포지션별 고유 챔피언 수를 계산합니다.</li>
+          <li><b>상위 10% 보너스</b> : 티어 점수, 라인 점수, 챔피언 폭, 내전 승률, 내전 KDA가 각각 상위 10%에 들면 항목당 보너스 1점을 줍니다. 컷오프 동점자는 함께 포함됩니다.</li>
+          <li><b>내전 승률/KDA</b> 는 가중 z-score에 직접 더하지 않고, 상위 10% Outlier 보너스에만 반영합니다. 경기 기록이 없는 멤버는 승률 0.5, KDA 3.0을 사용합니다.</li>
+        </ul>
+        <p class="calc-formula">최초 Elo = tier_score + lane_score + champ_score</p>
+        <p class="calc-formula">통계 반영 Elo = 최초 Elo + z(통산 승률)×100 + z(통산 KDA)×60 + outlier_score×20</p>
+      </div>
+
+      <div class="calc-copy-section">
+        <h3>2. 경기 결과 반영 방식</h3>
+        <ul>
+          <li>저장된 경기들을 <b>played_at → match_id</b> 순서로 다시 읽습니다.</li>
+          <li>같은 포지션끼리 <b>TOP / JUNGLE / MID / ADC / SUPPORT</b> 매치업을 잡습니다.</li>
+          <li>맞라이너 Elo 기대 승률과 양 팀 평균 Elo 기대 승률을 각각 계산합니다.</li>
+          <li>두 기대 승률을 50%씩 섞은 뒤 최종 팀 승패를 반영합니다.</li>
+        </ul>
+        <p class="calc-formula">맞라인 기대 승률 = 1 / (1 + 10 ^ ((상대 라인 점수 - 내 점수) / 400))</p>
+        <p class="calc-formula">팀 기대 승률 = 1 / (1 + 10 ^ ((상대 팀 평균 - 우리 팀 평균) / 400))</p>
+        <p class="calc-formula">최종 기대 승률 = (맞라인 기대 승률 + 팀 기대 승률) / 2</p>
+        <p class="calc-formula">반영 점수 = 현재 점수 + 32 × (실제 결과 - 최종 기대 승률)</p>
+        <p class="calc-note">내 팀과 내 맞라이너가 상대보다 강하면 승리 시 소폭 상승하고 패배 시 크게 하락합니다. 반대로 약한 조건에서 이기면 크게 상승하고 패배 시 적게 하락합니다.</p>
+      </div>
+
+      <div class="calc-copy-section">
+        <h3>3. 선택 인원 포지션 과밀 보정</h3>
+        <ul>
+          <li>선택된 10명에서 각 1순위 포지션의 정상 인원은 2명으로 봅니다.</li>
+          <li>3명 이상이면 <b>(초과 인원 × 50점)</b>을 해당 포지션 1순위 멤버의 그 내전용 점수에서 차감합니다.</li>
+          <li>다른 선호 포지션이 있으면 페널티의 70%, FILL이 있으면 30%만 적용합니다.</li>
+          <li>이 유효 점수는 <b>자동 팀 짜기와 토큰 경매에 모두 적용</b>되며 DB 원본 레이팅은 바뀌지 않습니다.</li>
+        </ul>
+        <p class="calc-formula">유효 점수 = 기본 레이팅 - (초과 인원 × 50 × 포지션 유연성 배율)</p>
+      </div>
+
+      <div class="calc-copy-section">
+        <h3>4. 팀 자동 배정 기준</h3>
+        <ul>
+          <li>10명 중 5명을 고르는 <b>팀 조합 126개</b>를 전수 검사합니다.</li>
+          <li>각 팀의 5개 라인 배치 <b>120개</b>를 다시 전수 검사합니다.</li>
+          <li><b>라인 적합도 합 × 50 - 양 팀 총 레이팅 차이</b> 값이 가장 좋은 조합을 채택합니다.</li>
+        </ul>
+        <p class="calc-note">그래서 단순 평균만 맞추는 것이 아니라, 각 팀이 실제로 라인을 소화할 수 있는지까지 함께 고려합니다.</p>
+      </div>
+
+      <div class="calc-copy-section">
+        <h3>5. 기존 데이터 반영</h3>
+        <ul>
+          <li><b>기존 경기 데이터를 지울 필요는 없습니다.</b></li>
+          <li>멤버 페이지의 <b>레이팅 전체 재계산</b> 버튼을 누르면, 현재 저장된 모든 경기 결과를 기준으로 코스트를 다시 계산합니다.</li>
+          <li>새 경기 등록 또는 기존 경기 수정 후에도 전체 레이팅이 다시 계산됩니다.</li>
+        </ul>
+      </div>
+    </article>
   </div>
 </section>
 <section id="members" class="page">
   <div class="heading">
     <div><b>MEMBERS</b><h1>멤버 관리</h1></div>
     <div class="member-heading-actions">
+      <button id="ratingRebuild" class="btn btn-ghost">레이팅 전체 재계산</button>
       <button id="bulkRiotRefresh" class="btn btn-riot">멤버 일괄 업데이트</button>
       <button id="addMember" class="btn btn-primary">멤버 추가</button>
     </div>
@@ -282,4 +366,4 @@
 </div>
 
 <datalist id="championOptions"></datalist>
-<div id="toast"></div><script src="/app.js?v=3.4.6"></script></body></html>
+<div id="toast"></div><script src="/app.js?v=3.4.11"></script></body></html>

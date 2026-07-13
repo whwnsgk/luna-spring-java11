@@ -45,4 +45,35 @@
  <select id="rivalry" resultType="map">WITH mine AS (SELECT p.match_id,p.team_code,p.win_yn FROM inhouse_match_player p JOIN inhouse_match im ON im.match_id=p.match_id WHERE p.member_id=#{memberId} <if test="seasonId!=null">AND im.season_id=#{seasonId}</if>) SELECT m.member_id,m.real_name,COUNT(*) games,COUNT(*) FILTER(WHERE x.win_yn) wins,ROUND(COUNT(*) FILTER(WHERE x.win_yn)*100.0/COUNT(*),1) win_rate FROM mine x JOIN inhouse_match_player p ON p.match_id=x.match_id AND p.team_code!=x.team_code JOIN member m ON m.member_id=p.member_id GROUP BY m.member_id,m.real_name HAVING COUNT(*)>=2 ORDER BY win_rate DESC,games DESC</select>
  <select id="recentMatches" resultType="map">SELECT im.match_id,im.played_at,im.winner_team,p.team_code,p.position_code,p.champion_name,p.kills,p.deaths,p.assists,p.win_yn,p.mvp_yn,s.season_name FROM inhouse_match_player p JOIN inhouse_match im ON im.match_id=p.match_id LEFT JOIN season s ON s.season_id=im.season_id WHERE p.member_id=#{memberId} <if test="seasonId!=null">AND im.season_id=#{seasonId}</if> ORDER BY im.played_at DESC LIMIT 5</select>
  <select id="inhouseSummary" resultType="map">SELECT COUNT(*) match_count,COUNT(*) FILTER(WHERE p.win_yn) win_count,COUNT(*) FILTER(WHERE NOT p.win_yn) loss_count,COALESCE(ROUND(COUNT(*) FILTER(WHERE p.win_yn)*100.0/NULLIF(COUNT(*),0),1),0) win_rate,COUNT(*) FILTER(WHERE p.mvp_yn) mvp_count,COALESCE(ROUND(AVG(p.kills),1),0) avg_kills,COALESCE(ROUND(AVG(p.deaths),1),0) avg_deaths,COALESCE(ROUND(AVG(p.assists),1),0) avg_assists,COALESCE(MAX(streak.win_streak),0) best_win_streak FROM inhouse_match_player p JOIN inhouse_match im ON im.match_id=p.match_id LEFT JOIN (SELECT member_id,MAX(cnt) win_streak FROM (SELECT member_id,grp,COUNT(*) cnt FROM (SELECT p2.member_id,p2.win_yn,SUM(CASE WHEN p2.win_yn THEN 0 ELSE 1 END) OVER(PARTITION BY p2.member_id ORDER BY im2.played_at,im2.match_id) grp FROM inhouse_match_player p2 JOIN inhouse_match im2 ON im2.match_id=p2.match_id <if test="seasonId!=null">WHERE im2.season_id=#{seasonId}</if>) q WHERE win_yn GROUP BY member_id,grp) w GROUP BY member_id) streak ON streak.member_id=p.member_id WHERE p.member_id=#{memberId} <if test="seasonId!=null">AND im.season_id=#{seasonId}</if> GROUP BY streak.win_streak</select>
+
+
+ <select id="ratingChampionCounts" resultType="map">
+  SELECT member_id "memberId",
+         position_code "positionCode",
+         COUNT(DISTINCT COALESCE(champion_code,champion_name))::int "championCount"
+    FROM inhouse_match_player
+   WHERE position_code IN ('TOP','JUNGLE','MID','ADC','SUPPORT')
+     AND COALESCE(champion_code,champion_name) IS NOT NULL
+   GROUP BY member_id,position_code
+ </select>
+
+ <select id="ratingMatches" resultType="map">
+  SELECT match_id "matchId",
+         winner_team "winnerTeam",
+         played_at "playedAt"
+    FROM inhouse_match
+   ORDER BY played_at,match_id
+ </select>
+
+ <select id="ratingPlayers" resultType="map">
+  SELECT match_id "matchId",
+         member_id "memberId",
+         team_code "teamCode",
+         position_code "positionCode"
+    FROM inhouse_match_player
+   ORDER BY match_id,
+            CASE team_code WHEN 'BLUE' THEN 1 ELSE 2 END,
+            CASE position_code WHEN 'TOP' THEN 1 WHEN 'JUNGLE' THEN 2 WHEN 'MID' THEN 3 WHEN 'ADC' THEN 4 WHEN 'SUPPORT' THEN 5 ELSE 6 END
+ </select>
+
 </mapper>
