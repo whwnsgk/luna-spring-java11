@@ -43,9 +43,10 @@ function renderLaneProfileEditor(values=[]){
   return `<div class="lane-profile-row" data-lane="${lane}">
     <strong>${PN[lane]}</strong>
     <label>선호도<select class="lane-preference">
-      <option value="0" ${preference===0?"selected":""}>0 · 절대 안 감</option>
-      <option value="1" ${preference===1?"selected":""}>1 · 2순위</option>
-      <option value="2" ${preference===2?"selected":""}>2 · 1순위</option>
+      <option value="0" ${preference===0?"selected":""}>0 · 절대 배치 금지</option>
+      <option value="1" ${preference===1?"selected":""}>1 · 자랭/5인큐 가능</option>
+      <option value="2" ${preference===2?"selected":""}>2 · 솔랭 가능</option>
+      <option value="3" ${preference===3?"selected":""}>3 · 다이아 이상 주라인</option>
     </select></label>
     <label>기용 가능 챔피언 수<input class="lane-champion-count" type="number" min="0" value="${champions}"></label>
   </div>`;
@@ -83,6 +84,63 @@ function syncExternalFields(){
  }
 }
 
+
+let cinematicTimer=null;let pendingAuctionCinematicTimer=null;
+const CINEMATIC_FILES={
+ balance:["/media/team-balance-video.mp4","/media/event-video.mp4"],
+ perfectBid:["/media/perfect-bid-video.mp4","/media/event-video.mp4"],
+ expensiveBid:["/media/expensive-bid-video.mp4","/media/event-video.mp4"]
+};
+
+function playCinematic(kind,title,subtitle="",duration=3200){
+ const overlay=document.getElementById("cinematicOverlay");
+ const video=document.getElementById("cinematicVideo");
+ const titleEl=document.getElementById("cinematicTitle");
+ const subtitleEl=document.getElementById("cinematicSubtitle");
+ const text=document.getElementById("cinematicText");
+ if(!overlay||!video||!titleEl||!subtitleEl||!text)return;
+
+ clearTimeout(cinematicTimer);
+ titleEl.textContent=title;
+ subtitleEl.textContent=subtitle;
+ text.className=`cinematic-text ${kind||""}`;
+ overlay.classList.remove("hidden");
+ overlay.classList.remove("play");
+ void overlay.offsetWidth;
+ overlay.classList.add("play");
+
+ const candidates=CINEMATIC_FILES[kind]||["/media/event-video.mp4"];
+ let index=0;
+ const finish=()=>{
+  clearTimeout(cinematicTimer);
+  overlay.classList.add("hidden");
+  overlay.classList.remove("play");
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+ };
+ const tryNext=()=>{
+  if(index>=candidates.length){
+   video.classList.add("hidden");
+   cinematicTimer=setTimeout(finish,duration);
+   return;
+  }
+  video.classList.remove("hidden");
+  video.src=candidates[index++];
+  video.currentTime=0;
+  video.muted=false;
+  video.volume=1;
+  video.play().catch(()=>{
+   video.muted=true;
+   video.play().catch(()=>tryNext());
+  });
+ };
+ video.onerror=()=>tryNext();
+ video.onended=()=>finish();
+ tryNext();
+ cinematicTimer=setTimeout(finish,duration);
+}
+
 function events(){
  addMember.onclick=()=>{
   memberForm.reset();mid.value="";puuid.value="";externalYn.checked=false;manualTierYn.checked=true;
@@ -105,6 +163,8 @@ function events(){
  memberForm.onsubmit=saveMember;riotLookup.onclick=lookup;
  externalYn.onchange=syncExternalFields;
  runBulkRiotRefresh.onclick=refreshAllRiotMembers;
+ forceTeamBuild.onclick=()=>{teamForceModal.classList.remove("open");runForcedTeamBuild();};
+ if(document.getElementById("applyRecommendedWeights"))applyRecommendedWeights.onclick=applyBalanceRecommendations;
  clear.onclick=()=>{S.selected=[];S.blue=[];S.red=[];S.draftAdjustments={};drawDraft();report()};
  auto.onclick=balance;record.onclick=()=>openMatch(S.blue,S.red);discordCopy.onclick=copyDiscord;discordSend.onclick=sendDiscord;matchForm.onsubmit=saveMatch;forceRecord.onclick=openForceMatch;editMatchButton.onclick=editCurrentMatch;
  seasonFilter.onchange=async()=>{S.seasonId=seasonFilter.value?+seasonFilter.value:null;await refreshSeasonData()};
@@ -138,7 +198,7 @@ function events(){
  document.querySelectorAll(".bid-btn").forEach(b=>b.onclick=()=>placeAuctionBid(b.dataset.team,b.dataset.add));
  document.querySelectorAll(".drop").forEach(z=>{z.ondragover=e=>e.preventDefault();z.ondrop=e=>{e.preventDefault();move(S.drag,z.id)}})
 }
-async function all(){await Promise.all([loadMembers(),loadMatches(),dashboard(),ranking()])}
+async function all(){await Promise.all([loadMembers(),loadMatches(),dashboard(),ranking(),loadBalanceTuning()])}
 async function refreshSeasonData(){await Promise.all([loadMatches(),dashboard(),ranking()]);if(memberDetailModal.classList.contains("open")&&memberDetail.dataset.memberId)await memberDetailView(+memberDetail.dataset.memberId)}
 function qs(){return S.seasonId?`?seasonId=${S.seasonId}`:""}
 async function loadSeasons(){S.seasons=await api("/api/seasons");let active=S.seasons.find(x=>x.activeYn);S.activeSeasonId=active?+active.seasonId:null;if(S.seasonId==null)S.seasonId=S.activeSeasonId;seasonFilter.innerHTML=`<option value="">전체 통산</option>`+S.seasons.map(x=>`<option value="${x.seasonId}" ${+x.seasonId===S.seasonId?"selected":""}>${esc(x.seasonName)}${x.activeYn?" · 진행 중":""}</option>`).join("");matchSeason.innerHTML=S.seasons.map(x=>`<option value="${x.seasonId}" ${x.activeYn?"selected":""}>${esc(x.seasonName)}</option>`).join("")}
@@ -176,11 +236,6 @@ window.del=async id=>{if(confirm("삭제할까요?")){await api(`/api/members/${
 async function saveMember(e){
  e.preventDefault();
  const profiles=laneProfilePayload();
- const primary=profiles.filter(x=>x.preferenceScore===2).length;
- const secondary=profiles.filter(x=>x.preferenceScore===1).length;
-
- if(primary!==1){toast("1순위 라인을 정확히 하나 선택해주세요.");return}
- if(secondary>1){toast("2순위 라인은 최대 하나만 선택할 수 있습니다.");return}
 
  const body={
   realName:realName.value.trim(),
@@ -205,6 +260,29 @@ async function saveMember(e){
   toast("저장하고 전체 레이팅을 재계산했습니다.");
   await all()
  }catch(e){toast(e.message)}
+}
+
+
+let lastBalanceAnalysis=null;
+async function loadBalanceTuning(){
+ const panel=document.getElementById("balanceTuningValues");if(!panel)return;
+ try{
+  const a=await api("/api/balance-tuning/analysis");lastBalanceAnalysis=a;
+  balanceTuningMessage.textContent=`${a.message} · 투표 반영 경기 ${a.sampleCount||0}개`;
+  const c=a.current||{},r=a.recommended||c;
+  panel.innerHTML=[
+   ["맞라인 차이",c.matchupDiffWeight,r.matchupDiffWeight],
+   ["팀 총점 차이",c.teamDiffWeight,r.teamDiffWeight],
+   ["1점 배치 페널티",c.skill1Penalty,r.skill1Penalty],
+   ["3점 비상 배치 페널티",c.skill3Penalty,r.skill3Penalty],
+   ["포지션 과밀 페널티",c.crowdingPenalty,r.crowdingPenalty]
+  ].map(x=>`<div><span>${x[0]}</span><b>${x[1]}</b><em>추천 ${x[2]}</em></div>`).join("");
+ }catch(e){balanceTuningMessage.textContent="가중치 분석을 불러오지 못했습니다."}
+}
+async function applyBalanceRecommendations(){
+ if(!lastBalanceAnalysis){toast("분석 데이터를 먼저 불러오세요.");return}
+ await api("/api/balance-tuning/analysis/apply",{method:"POST"});
+ toast("추천 가중치를 자동 팀 짜기에 적용했습니다.");await loadBalanceTuning();
 }
 
 function normalizeRiotGameName(value){
@@ -279,8 +357,73 @@ function drawDraft(){
 }
 function slots(ids,n){return ids.map(id=>chip(S.members.find(x=>x.memberId===id))).join("")+Array.from({length:n-ids.length},()=>`<div class="empty">빈 슬롯</div>`).join("")}
 function move(id,zone){if(!id)return;S.selected=S.selected.filter(x=>x!==id);S.blue=S.blue.filter(x=>x!==id);S.red=S.red.filter(x=>x!==id);if(zone==="pool"){}else if(zone==="selected"&&S.selected.length<10)S.selected.push(id);else if(zone==="blue"&&S.blue.length<5)S.blue.push(id);else if(zone==="red"&&S.red.length<5)S.red.push(id);drawDraft();evaluate()}
-async function balance(){let ids=[...new Set([...S.selected,...S.blue,...S.red])];try{let r=await api("/api/team-balance/auto",{method:"POST",body:JSON.stringify({memberIds:ids})});S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));S.selected=[];S.blue=r.blueTeam.map(x=>x.memberId);S.red=r.redTeam.map(x=>x.memberId);drawDraft();showReport(r)}catch(e){toast(e.message)}}
-async function evaluate(){if(S.blue.length===5&&S.red.length===5){let r=await api("/api/team-balance/evaluate",{method:"POST",body:JSON.stringify({blueMemberIds:S.blue,redMemberIds:S.red})});S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));drawDraft();showReport(r)}else{S.draftAdjustments={};report()}}
+async function balance(){
+ const ids=[...new Set([...S.selected,...S.blue,...S.red])];
+ try{
+  const r=await requestTeamBuild(ids,false);
+  applyTeamBuildResponse(r,true);
+ }catch(e){
+  showTeamBuildFailure(ids,e.message);
+ }
+}
+
+async function requestTeamBuild(ids,forceYn){
+ return api("/api/team-balance/auto",{method:"POST",body:JSON.stringify({memberIds:ids,forceYn})});
+}
+
+function applyTeamBuildResponse(r,cinematic){
+ S.recommendations=r.recommendations||[r];
+ renderTeamRecommendations();
+ selectRecommendation(0,cinematic);
+ if(r.forcedTeam)toast("강제 진행으로 팀을 구성했습니다. 0점 배치 또는 최고 티어 서포터가 포함될 수 있습니다.");
+}
+
+function showTeamBuildFailure(ids,message){
+ const selected=ids.map(findMember).filter(Boolean);
+ const laneCounts={TOP:0,JUNGLE:0,MID:0,ADC:0,SUPPORT:0};
+ selected.forEach(m=>(m.laneProfiles||[]).forEach(p=>{if(Number(p.preferenceScore)>0)laneCounts[p.positionCode]=(laneCounts[p.positionCode]||0)+1}));
+ const lacking=Object.entries(laneCounts).filter(([,count])=>count<2);
+ const quickest=lacking.length
+  ?lacking.map(([lane,count])=>`${PN[lane]} 가능 인원을 ${count}명에서 최소 2명으로 늘리기`).join("<br>")
+  :"선택된 10명 중 최고 티어 멤버의 서포터 외 라인을 1점 이상으로 추가하거나, 3점 주라인 설정을 확인해주세요.";
+ teamForceReason.textContent=message||"유효한 팀을 만들 수 없습니다.";
+ teamForceSuggestions.innerHTML=`<h3>가장 빠른 수정 방법</h3><p>${quickest}</p><small>강제 진행은 0점 라인 금지와 최고 티어 서포터 제한을 마지막 수단으로 해제합니다.</small>`;
+ teamForceModal.dataset.memberIds=ids.join(",");
+ teamForceModal.classList.add("open");
+}
+
+async function runForcedTeamBuild(){
+ const ids=(teamForceModal.dataset.memberIds||"").split(",").filter(Boolean).map(Number);
+ if(ids.length!==10){toast("강제 진행할 10명 정보를 찾지 못했습니다.");return}
+ try{
+  const r=await requestTeamBuild(ids,true);
+  applyTeamBuildResponse(r,true);
+ }catch(e){toast(e.message);alert(e.message)}
+}
+
+function renderTeamRecommendations(){
+ const box=document.getElementById("teamRecommendations");
+ if(!box)return;
+ box.classList.toggle("hidden",!S.recommendations.length);
+ box.innerHTML=S.recommendations.map((r,i)=>`<button class="recommendation-card ${i===0?"active":""}" onclick="selectRecommendation(${i})">
+  <span>추천 ${i+1}</span>
+  <b>맞라인 차이 ${r.matchupDifference}</b>
+  <small>팀 차이 ${r.costDifference} · 2점 ${r.skill2Count}명 · 1점 ${r.skill1Count}명 · 3점 ${r.skill3Count}명</small>
+  <em>BLUE ${r.blueExpectedWinRate}% / RED ${r.redExpectedWinRate}%</em>
+ </button>`).join("");
+}
+
+window.selectRecommendation=(index,cinematic=false)=>{
+ const r=S.recommendations[index];if(!r)return;
+ S.selectedRecommendation=r;
+ S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));
+ S.selected=[];S.blue=r.blueTeam.map(x=>x.memberId);S.red=r.redTeam.map(x=>x.memberId);
+ document.querySelectorAll(".recommendation-card").forEach((x,i)=>x.classList.toggle("active",i===index));
+ drawDraft();showReport(r);
+ if(cinematic)playCinematic("balance","완벽한 밸런스!",`추천 1 · 맞라인 차이 ${r.matchupDifference}`,3200);
+};
+
+async function evaluate(){if(S.blue.length===5&&S.red.length===5){let r=await api("/api/team-balance/evaluate",{method:"POST",body:JSON.stringify({blueMemberIds:S.blue,redMemberIds:S.red})});S.selectedRecommendation=r;S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));drawDraft();showReport(r)}else{S.draftAdjustments={};report()}}
 function showReport(r){bcost.textContent=r.blueCost;rcost.textContent=r.redCost;bwin.textContent=r.blueExpectedWinRate+"%";rwin.textContent=r.redExpectedWinRate+"%";message.textContent=r.algorithmMessage+" · 차이 "+r.costDifference}
 function report(){bcost.textContent=rcost.textContent="0";bwin.textContent=rwin.textContent="50.0%";message.textContent="10명을 선택해주세요."}
 function openMatch(b,r){
@@ -407,10 +550,28 @@ async function saveMatch(e){
    toast(`'${invalid.value||"빈 값"}'은 등록된 챔피언이 아닙니다. 자동완성 목록에서 선택해주세요.`);
    return;
  }
- const payload={seasonId:matchSeason.value?+matchSeason.value:null,playedAt:playedAt.value,winnerTeam:winner.value,memo:memo.value,players:collectMatchPlayers(),updatedBy:updatedBy.value,updateReason:updateReason.value,forceYn:forceMode.value==='Y'};
+ const payload={seasonId:matchSeason.value?+matchSeason.value:null,playedAt:playedAt.value,winnerTeam:winner.value,memo:memo.value,players:collectMatchPlayers(),updatedBy:updatedBy.value,updateReason:updateReason.value,forceYn:forceMode.value==='Y',balanceFeature:S.selectedRecommendation?.balanceFeature||null};
  try{const id=editingMatchId.value;const url=id?`/api/matches/${id}`:(forceMode.value==='Y'?'/api/matches/force':'/api/matches');await api(url,{method:id?'PUT':'POST',body:JSON.stringify(payload)});matchModal.classList.remove("open");toast(id?"경기 기록을 수정했습니다.":"경기를 저장했습니다.");await all();document.querySelector('[data-page="matches"]').click()}catch(e){toast(e.message)}}
 async function loadMatches(){S.matches=await api("/api/matches"+qs());const mods=await api('/api/matches/recent-modified');recentModified.classList.toggle('hidden',!mods.length);recentModified.innerHTML=mods.length?`<h3>최근 수정 기록</h3>`+mods.map(m=>`<div class="modified-row" onclick="detailMatch(${m.matchId})"><span><b>#${m.matchId}</b> ${esc(m.updateReason||'수정')}</span><small>${esc(m.updatedBy||'사용자')} · ${fmt(m.updatedAt)}</small></div>`).join(''):'';matchList.innerHTML=S.matches.length?S.matches.map(m=>`<div class="item" onclick="detailMatch(${m.matchId})"><span><b>#${m.matchId} ${fmt(m.playedAt)}</b> ${m.forceYn?'<span class="force-badge">강제</span>':''} ${m.updatedAt&&m.createdAt&&new Date(m.updatedAt)>new Date(m.createdAt).getTime()+1000?'<span class="match-edit-badge">수정됨</span>':''}<p>${esc(m.seasonName||"통산")} · ${esc(m.memo||"메모 없음")}</p></span><strong>${m.winnerTeam} WIN · ${m.blueCost}:${m.redCost}</strong></div>`).join(""):`<div class="empty">경기 없음</div>`;recent.innerHTML=S.matches.slice(0,5).map(m=>`<div class="item" onclick="detailMatch(${m.matchId})"><span>${fmt(m.playedAt)}</span><b>${m.winnerTeam} WIN</b></div>`).join("")||"경기 없음"}
-let currentMatchDetail=null;window.detailMatch=async id=>{let m=await api(`/api/matches/${id}`);currentMatchDetail=m;detail.innerHTML=`<h2>#${id} ${m.winnerTeam} WIN ${m.forceYn?'<span class="force-badge">강제 기록</span>':''}</h2><p>${esc(m.seasonName||"통산")} · ${fmt(m.playedAt)} · ${esc(m.memo||"")}</p>${m.updateReason?`<div class="notice">최근 수정: ${esc(m.updateReason)} · ${esc(m.updatedBy||'사용자')} · ${fmt(m.updatedAt)}</div>`:''}`+["BLUE","RED"].map(t=>`<article><h3>${t}</h3>${m.players.filter(x=>(x.team_code||x.teamCode)===t).map(x=>`<div class="item"><b>${esc(x.realName)} ${x.mvp_yn||x.mvpYn?"👑":""}</b><span>${x.position_code||x.positionCode} · <span class="champion-inline">${championIcon(x.champion_name||x.championName||"")}<b>${esc(championLabel(x.champion_name||x.championName||"-"))}</b></span> ${x.kills}/${x.deaths}/${x.assists}</span></div>`).join("")}</article>`).join("");editMatchButton.classList.remove('hidden');detailModal.classList.add("open")};
+const balanceVoterKey=localStorage.getItem("riftBalanceVoterKey")||((crypto&&crypto.randomUUID)?crypto.randomUUID():`vote-${Date.now()}-${Math.random()}`);
+localStorage.setItem("riftBalanceVoterKey",balanceVoterKey);
+let currentMatchDetail=null;
+window.detailMatch=async id=>{
+ let m=await api(`/api/matches/${id}`);currentMatchDetail=m;
+ detail.innerHTML=`<h2>#${id} ${m.winnerTeam} WIN ${m.forceYn?'<span class="force-badge">강제 기록</span>':''}</h2><p>${esc(m.seasonName||"통산")} · ${fmt(m.playedAt)} · ${esc(m.memo||"")}</p>${m.updateReason?`<div class="notice">최근 수정: ${esc(m.updateReason)} · ${esc(m.updatedBy||'사용자')} · ${fmt(m.updatedAt)}</div>`:''}`+
+ ["BLUE","RED"].map(t=>`<article><h3>${t}</h3>${m.players.filter(x=>(x.team_code||x.teamCode)===t).map(x=>`<div class="item"><b>${esc(x.realName)} ${x.mvp_yn||x.mvpYn?"👑":""}</b><span>${x.position_code||x.positionCode} · <span class="champion-inline">${championIcon(x.champion_name||x.championName||"")}<b>${esc(championLabel(x.champion_name||x.championName||"-"))}</b></span> ${x.kills}/${x.deaths}/${x.assists}</span></div>`).join("")}</article>`).join("")+
+ `<section class="balance-vote-panel"><h3>이번 경기 밸런스는 어땠나요?</h3><div class="balance-vote-buttons">
+ <button onclick="submitBalanceVote(${id},'PERFECT')">⚖️ 황밸</button>
+ <button onclick="submitBalanceVote(${id},'NORMAL')">🙂 보통</button>
+ <button onclick="submitBalanceVote(${id},'BAD')">💥 나빠요</button></div><div id="balanceVoteSummary">투표 결과를 불러오는 중...</div></section>`;
+ await loadBalanceVoteSummary(id);
+ editMatchButton.classList.remove('hidden');detailModal.classList.add("open")
+};
+async function loadBalanceVoteSummary(id){
+ const v=await api(`/api/matches/${id}/balance-votes?voterKey=${encodeURIComponent(balanceVoterKey)}`);
+ balanceVoteSummary.innerHTML=`황밸 <b>${v.perfectCount||0}</b> · 보통 <b>${v.normalCount||0}</b> · 나빠요 <b>${v.badCount||0}</b>${v.myVote?` · 내 투표: <b>${{PERFECT:"황밸",NORMAL:"보통",BAD:"나빠요"}[v.myVote]}</b>`:""}`;
+}
+window.submitBalanceVote=async(id,voteValue)=>{await api(`/api/matches/${id}/balance-votes`,{method:"POST",body:JSON.stringify({voterKey:balanceVoterKey,voteValue})});toast("밸런스 평가를 반영했습니다.");await loadBalanceVoteSummary(id);await loadBalanceTuning();};
 async function editCurrentMatch(){const m=currentMatchDetail;if(!m)return;detailModal.classList.remove('open');editingMatchId.value=m.matchId;forceMode.value='N';matchModalTitle.textContent=`경기 #${m.matchId} 수정`;editMeta.classList.remove('hidden');matchSeason.value=m.seasonId||'';playedAt.value=String(m.playedAt).slice(0,16);winner.value=m.winnerTeam;memo.value=m.memo||'';updatedBy.value='';updateReason.value='';players.innerHTML=['BLUE','RED'].map(t=>`<h3>${t}</h3>`+m.players.filter(x=>(x.team_code||x.teamCode)===t).map(x=>{const id=x.member_id||x.memberId;return `<div class="playerrow" data-id="${id}" data-team="${t}"><b>${esc(x.realName)}</b><select class="pp">${POS.map(p=>`<option ${(x.position_code||x.positionCode)===p?'selected':''}>${p}</option>`).join('')}</select><span class="champion-input-wrap">${championIcon(x.champion_name||x.championName||"", "champion-input-icon")}<input class="champ" list="championOptions" value="${esc(x.champion_name||x.championName||'')}"></span><input class="k" type="number" value="${x.kills||0}"><input class="d" type="number" value="${x.deaths||0}"><input class="a" type="number" value="${x.assists||0}"><label><input class="mvp" type="checkbox" ${x.mvp_yn||x.mvpYn?'checked':''}>MVP</label></div>`}).join('')).join('');matchModal.classList.add('open')}
 async function dashboard(){let [d,h,a]=await Promise.all([api("/api/matches/dashboard"+qs()),api("/api/members/hall-of-fame"+qs()),api("/api/matches/awards"+qs())]);let m={};d.forEach(x=>m[x.metric]=x.value);metrics.innerHTML=[["멤버",m.memberCount||0],["경기",m.matchCount||0],["블루 승",m.blueWins||0],["레드 승",m.redWins||0]].map(x=>`<div class="metric"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join("");hall.innerHTML=h.map((x,i)=>`<div class="item"><b>${i+1}. ${esc(x.real_name)}</b><strong>${x.win_rate}%</strong></div>`).join("")||"최소 3경기 후 표시";awards.innerHTML=a.length?a.map(x=>`<div class="award-card"><small>${esc(x.award_name)}</small><strong>${esc(x.real_name)}</strong><span>${awardValue(x)}</span></div>`).join(""):`<div class="empty">경기 기록이 쌓이면 시즌 어워드가 표시됩니다.</div>`}
 function awardValue(x){if(x.award_code==="WIN_RATE")return `${x.value}% · ${x.games}경기`;if(x.award_code==="SURVIVOR")return `평균 ${x.value}데스`;return `${x.value}`}
@@ -741,6 +902,16 @@ function handleAuctionEvent(prev,a){
  }else if(a.eventType==='SOLD'){
    showAuctionEvent(a,`sold ${(a.eventTeam||'BLUE').toLowerCase()}`,2300);
    AuctionSound.sold(a.eventTeam||'BLUE');
+   const fair=Number(a.eventFairPrice||0);
+   const paid=Number(a.eventPrice||0);
+   const score=Number(a.eventMemberScore||0);
+   const average=Number(a.eventAverageScore||0);
+   clearTimeout(pendingAuctionCinematicTimer);
+   if(fair>0&&paid<=fair*0.80&&score>=average){
+     pendingAuctionCinematicTimer=setTimeout(()=>playCinematic("perfectBid","완벽한 입찰!",`${a.eventMemberName||"선수"} · ${paid}원 / 적정가 ${fair}원`,3200),2450);
+   }else if(fair>0&&paid>=fair*1.25){
+     pendingAuctionCinematicTimer=setTimeout(()=>playCinematic("expensiveBid","너무 비싼 입찰!",`${a.eventMemberName||"선수"} · ${paid}원 / 적정가 ${fair}원`,3200),2450);
+   }
  }else if(a.eventType==='UNSOLD'){
    showAuctionEvent(a,'turn',2100);
    AuctionSound.error();
@@ -760,7 +931,35 @@ function showAuctionEvent(a,kind,duration){
  auctionEventPanel.classList.add('play');
  auctionEventTimer=setTimeout(()=>{auctionEventOverlay.classList.add('hidden');auctionEventPanel.classList.remove('play')},duration||1400);
 }
+
+function auctionTeamScore(team){
+ return (team||[]).reduce((sum,m)=>sum+Number(m.balanceScore||0),0);
+}
+
+function auctionWinRateState(a){
+ const blueScore=auctionTeamScore(a?.blueTeam);
+ const redScore=auctionTeamScore(a?.redTeam);
+ const blue=1/(1+Math.pow(10,(redScore-blueScore)/400));
+ return {
+  blueScore,
+  redScore,
+  blueRate:Math.round(blue*1000)/10,
+  redRate:Math.round((1-blue)*1000)/10
+ };
+}
+
+function updateAuctionFinalWinRates(a){
+ const result=auctionWinRateState(a);
+ if(document.getElementById("auctionBlueWinRate"))auctionBlueWinRate.textContent=`${result.blueRate}%`;
+ if(document.getElementById("auctionRedWinRate"))auctionRedWinRate.textContent=`${result.redRate}%`;
+ if(document.getElementById("auctionBlueFinalScore"))auctionBlueFinalScore.textContent=`총 ${result.blueScore}점`;
+ if(document.getElementById("auctionRedFinalScore"))auctionRedFinalScore.textContent=`총 ${result.redScore}점`;
+ if(document.getElementById("completeOverlayBlueWinRate"))completeOverlayBlueWinRate.textContent=`${result.blueRate}%`;
+ if(document.getElementById("completeOverlayRedWinRate"))completeOverlayRedWinRate.textContent=`${result.redRate}%`;
+}
+
 function showAuctionComplete(){
+ updateAuctionFinalWinRates(auctionState);
  auctionCompleteOverlay.classList.remove('hidden');
  setTimeout(()=>auctionCompleteOverlay.classList.add('hidden'),4200);
 }
@@ -789,7 +988,7 @@ function renderRealtimeAuction(){const a=auctionState;if(!a)return;renderAuction
  }else if(c){
    auctionMessage.textContent=a.turnHostName?`${a.turnHostName}님의 입찰 차례입니다.`:'입찰 진행 중';
  }
- if(a.status==='COMPLETE'){S.blue=a.blueTeam.map(x=>+x.memberId);S.red=a.redTeam.map(x=>+x.memberId);S.selected=[];drawDraft();report()}}
+ if(a.status==='COMPLETE'){S.blue=a.blueTeam.map(x=>+x.memberId);S.red=a.redTeam.map(x=>+x.memberId);S.selected=[];drawDraft();updateAuctionFinalWinRates(a)}}
 
 let auctionStartFxPlayedForRoom=null;
 function renderAuctionStartOverlay(a){

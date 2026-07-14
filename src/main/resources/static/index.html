@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.4.12-hotfix"></head>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.5.4"></head>
 <body>
 <header><div class="brand"><span class="brand-mark">RA</span><span>RIFT ARENA <small>롤 내전 관리실</small></span></div><nav><button class="nav-btn active" data-page="home">대시보드</button><button class="nav-btn" data-page="members">멤버</button><button class="nav-btn" data-page="draft">내전 짜기</button><button class="nav-btn" data-page="auction">토큰 경매</button><button class="nav-btn" data-page="matches">경기 기록</button><button class="nav-btn" data-page="stats">통계</button><button class="nav-btn" data-page="calc">산출근거</button></nav></header>
 <div class="seasonbar"><div><span>시즌</span><select id="seasonFilter"></select></div><button id="manageSeason" class="btn btn-ghost btn-small">시즌 관리</button></div>
@@ -15,8 +15,7 @@
     <div class="main-media-content">
       <b>IN-HOUSE CONTROL ROOM</b>
       <h1>적이었을 땐 날 패던 놈들이,<br>우리 팀에 오니까 병신이 된다.</h1>
-      <blockquote class="main-quote">“이원우선생의 명언,<br>2026.07.01.”</blockquote>
-      <p>해당 영상은 서정호의 슈퍼 플레이입니다.</p>
+      <p>멤버 등록, 10인 팀 편성, 경기 결과 입력과 통계를 한곳에서 관리합니다.</p>
       <div class="main-media-actions">
         <button class="btn btn-primary" data-page="draft">내전 짜기</button>
         <button class="btn btn-ghost" data-page="members">멤버 보기</button>
@@ -28,7 +27,7 @@
 
   <div class="legacy-home-content">
 
-<div class="hero"><div><b>IN-HOUSE CONTROL ROOM</b><h1>정호님도 부담없이 내전할수 있는,<br>효과적 레이팅 시스템.</h1><p>멤버 등록, 10인 팀 편성, 경기 결과 수동 입력과 통계를 한 곳에서 관리합니다.</p><button class="btn btn-primary" data-page="draft">오늘의 내전 짜기</button></div><div class="orb">5 : 5</div></div><div id="metrics" class="metrics"></div><h2 class="section-title">시즌 어워드</h2><div id="awards" class="award-grid"></div><div class="twocol"><article><h2>최근 경기</h2><div id="recent"></div></article><article><h2>승률 명예의 전당</h2><div id="hall"></div></article></div>
+<div class="hero"><div><b>IN-HOUSE CONTROL ROOM</b><h1>정호님도 부담없이 즐길 수 있는<br>내전 밸런스</h1><p>왕관의 무게를 견뎌야죠</p><button class="btn btn-primary" data-page="draft">오늘의 내전 짜기</button></div><div class="orb">5 : 5</div></div><div id="metrics" class="metrics"></div><h2 class="section-title">시즌 어워드</h2><div id="awards" class="award-grid"></div><div class="twocol"><article><h2>최근 경기</h2><div id="recent"></div></article><article><h2>승률 명예의 전당</h2><div id="hall"></div></article></div>
   
   </div>
 </section>
@@ -59,7 +58,7 @@
         <h3>1. 초기 파워 점수</h3>
         <ul>
           <li><b>티어 점수 30%</b> : 현재 솔로 랭크 티어/티어 단계(I, II, III, IV)를 점수화합니다.</li>
-          <li><b>라인 점수</b> : 라인별 1순위는 2점, 2순위는 1점, 절대 안 가는 라인은 0점으로 입력합니다. 각 라인의 500점을 해당 라인을 갈 수 있는 인원수로 나눈 뒤 개인 지표를 곱합니다.</li>
+          <li><b>라인 점수</b> : 라인별 숙련도는 3=다이아 이상 주라인, 2=솔랭 가능, 1=자랭·5인큐 가능, 0=절대 배치 금지로 입력합니다. 여러 라인에 같은 점수를 줄 수 있습니다. 각 라인의 500점을 해당 라인을 갈 수 있는 인원수로 나눈 뒤 개인 지표를 곱합니다.</li>
           <li><b>챔피언 폭</b> : 밴 상황까지 고려해 사람별·라인별 기용 가능한 챔피언 수를 직접 입력합니다. 7개 초과부터는 로그 함수로 증가폭을 완만하게 합니다.</li>
           <li><b>상위 10% 보너스</b> : 티어 점수, 라인 점수, 챔피언 폭, 내전 승률, 내전 KDA가 각각 상위 10%에 들면 항목당 보너스 1점을 줍니다. 컷오프 동점자는 함께 포함됩니다.</li>
           <li><b>내전 승률/KDA</b> 는 가중 z-score에 직접 더하지 않고, 상위 10% Outlier 보너스에만 반영합니다. 경기 기록이 없는 멤버는 승률 0.5, KDA 3.0을 사용합니다.</li>
@@ -86,29 +85,66 @@
       <div class="calc-copy-section">
         <h3>3. 선택 인원 포지션 과밀 보정</h3>
         <ul>
-          <li>선택된 10명에서 각 1순위 포지션의 정상 인원은 2명으로 봅니다.</li>
-          <li>3명 이상이면 <b>(초과 인원 × 50점)</b>을 해당 포지션 1순위 멤버의 그 내전용 점수에서 차감합니다.</li>
-          <li>다른 선호 포지션이 있으면 페널티의 70%, FILL이 있으면 30%만 적용합니다.</li>
-          <li>이 유효 점수는 <b>자동 팀 짜기와 토큰 경매에 모두 적용</b>되며 DB 원본 레이팅은 바뀌지 않습니다.</li>
+          <li>선택된 10명에서 같은 3점 주라인이 2명을 초과하면 해당 포지션을 과밀 상태로 봅니다.</li>
+          <li>초과 인원 수에 따라 해당 포지션 멤버의 그 내전용 유효 레이팅을 낮춥니다.</li>
+          <li>이 점수는 자동 팀 짜기와 토큰 경매에 공통 적용되며, DB의 원본 레이팅은 변경하지 않습니다.</li>
+          <li>기존의 최소 600점 강제 제한은 제거되어 실제 계산 차이가 그대로 유지됩니다.</li>
         </ul>
-        <p class="calc-formula">유효 점수 = 기본 레이팅 - (초과 인원 × 50 × 포지션 유연성 배율)</p>
+        <p class="calc-formula">유효 레이팅 = 기본 레이팅 - 포지션 과밀 페널티</p>
       </div>
 
       <div class="calc-copy-section">
-        <h3>4. 팀 자동 배정 기준</h3>
+        <h3>4. 최신 자동 팀 배정 산식</h3>
+        <p class="calc-note">팀 자동 배정은 양 팀 총점만 비교하지 않고, 동일 포지션 맞라이너의 Elo 차이를 핵심 기준으로 사용합니다.</p>
+        <p class="calc-formula">평가점수 = 맞라인 Elo 차이 합 × 맞라인 가중치 + 양 팀 총점 차이 × 팀 차이 가중치 + 1점 배치 페널티 + 3점 비상 배치 페널티 + 포지션 과밀 페널티 + 최고 티어 서포터 페널티</p>
+        <p class="calc-note">평가점수가 낮을수록 더 좋은 팀 조합입니다.</p>
         <ul>
-          <li>10명 중 5명을 고르는 <b>팀 조합 126개</b>를 전수 검사합니다.</li>
-          <li>각 팀의 5개 라인 배치 <b>120개</b>를 다시 전수 검사합니다.</li>
-          <li><b>라인 적합도 합 × 50 - 양 팀 총 레이팅 차이</b> 값이 가장 좋은 조합을 채택합니다.</li>
+          <li><b>맞라인 Elo 차이 합</b> : TOP, JUNGLE, MID, ADC, SUPPORT의 블루·레드 맞라이너 점수 차이를 모두 합산합니다.</li>
+          <li><b>양 팀 총점 차이</b> : 블루팀과 레드팀의 유효 레이팅 총합 차이입니다.</li>
+          <li><b>1점 배치 페널티</b> : 자랭·5인큐 정도만 가능한 라인 배치를 줄이기 위한 페널티입니다.</li>
+          <li><b>3점 비상 배치 페널티</b> : 다이아 이상 수준의 강한 주라인은 기본 탐색에서 봉인하고, 2점·1점만으로 팀이 나오지 않을 때만 해제합니다.</li>
+          <li><b>최고 티어 서포터 제한</b> : 선택된 10명 중 tier_score가 가장 높은 멤버는 기본 탐색에서 SUPPORT에 배치하지 않습니다.</li>
         </ul>
-        <p class="calc-note">그래서 단순 평균만 맞추는 것이 아니라, 각 팀이 실제로 라인을 소화할 수 있는지까지 함께 고려합니다.</p>
+        <p class="calc-formula">라인 숙련도: 3 = 다이아 이상 주라인 · 2 = 솔랭 가능 · 1 = 자랭/5인큐 가능 · 0 = 절대 배치 금지</p>
+        <p class="calc-note">탐색 우선순위는 <b>2점 최대화 → 1점 보조 → 필요 시 3점 비상 해제 → 0점 금지</b>입니다.</p>
       </div>
 
       <div class="calc-copy-section">
-        <h3>5. 기존 데이터 반영</h3>
+        <h3>5. 자동 팀 탐색 범위와 추천 5개</h3>
+        <ul>
+          <li>10명 중 5명을 고르는 대칭 제거 팀 조합 126개를 검사합니다.</li>
+          <li>각 팀마다 5개 라인의 가능한 배치 120개를 검사합니다.</li>
+          <li>유효한 모든 후보를 평가점수가 낮은 순으로 정렬한 뒤 상위 5개를 화면에 표시합니다.</li>
+          <li>각 추천에는 맞라인 차이, 팀 총점 차이, 1점·2점·3점 배치 수와 예상 승률이 표시됩니다.</li>
+          <li>사용자가 추천 1~5 중 하나를 선택해 경기 기록 또는 경매로 넘길 수 있습니다.</li>
+        </ul>
+      </div>
+
+      <div class="calc-copy-section">
+        <h3>6. 자동 배정 실패와 강제 진행</h3>
+        <ul>
+          <li>0점 라인 없이 팀을 만들 수 없으면 자동 배정을 중단하고 라인 설정 수정 안내를 보여줍니다.</li>
+          <li>선택된 10명의 라인 가능 인원을 분석해 가장 빠르게 수정할 포지션을 안내합니다.</li>
+          <li>사용자가 강제 진행을 선택하면 마지막 수단으로 0점 라인과 최고 티어 서포터 제한을 해제합니다.</li>
+          <li>강제 모드에서도 0점 배치와 최고 티어 서포터에는 매우 큰 페널티를 적용해 가능한 한 적게 사용합니다.</li>
+        </ul>
+      </div>
+
+      <div class="calc-copy-section">
+        <h3>7. 경기 후 밸런스 투표와 가중치 튜닝</h3>
+        <ul>
+          <li>경기 상세 화면에서 <b>황밸 / 보통 / 나빠요</b> 투표를 받습니다.</li>
+          <li>경기 당시의 맞라인 차이, 팀 총점 차이, 1점·2점·3점 배치 수, 포지션 과밀 수와 알고리즘 평가점수를 함께 저장합니다.</li>
+          <li>투표가 5경기 이상 쌓이면 황밸 경기와 나빠요 경기의 특성을 비교해 추천 가중치를 계산합니다.</li>
+          <li>추천값은 자동 적용하지 않고 통계 화면의 <b>추천 가중치 적용</b> 버튼을 눌렀을 때 이후 자동 팀 짜기에 반영됩니다.</li>
+        </ul>
+      </div>
+
+      <div class="calc-copy-section">
+        <h3>8. 기존 데이터 반영</h3>
         <ul>
           <li><b>기존 경기 데이터를 지울 필요는 없습니다.</b></li>
-          <li>멤버 페이지의 <b>레이팅 전체 재계산</b> 버튼을 누르면, 현재 저장된 모든 경기 결과를 기준으로 코스트를 다시 계산합니다.</li>
+          <li>멤버 페이지의 <b>레이팅 전체 재계산</b> 버튼으로 현재 저장된 모든 경기 결과를 시간순으로 다시 반영할 수 있습니다.</li>
           <li>새 경기 등록 또는 기존 경기 수정 후에도 전체 레이팅이 다시 계산됩니다.</li>
         </ul>
       </div>
@@ -147,7 +183,7 @@
     </div>
     <div id="selected" class="drop slots"></div>
   </article>
-</div><div class="teams"><article class="blue"><h2>블루팀 <span id="bcost">0</span></h2><div id="blue" class="drop"></div></article><article class="report"><h2>VS</h2><div><strong id="bwin">50.0%</strong> : <strong id="rwin">50.0%</strong></div><p id="message">10명을 선택해주세요.</p><button id="record" class="btn btn-secondary" disabled>이 팀으로 기록</button><button id="discordCopy" class="btn btn-ghost" disabled>Discord용 복사</button><button id="discordSend" class="btn btn-riot" disabled>Discord 채널 전송</button><button id="openAuctionFromDraft" class="btn btn-auction" disabled>이 10명으로 토큰 경매</button><small id="discordStatus">Webhook 확인 중</small></article><article class="red"><h2>레드팀 <span id="rcost">0</span></h2><div id="red" class="drop"></div></article></div></section>
+</div><div id="teamRecommendations" class="team-recommendations hidden"></div><div class="teams"><article class="blue"><h2>블루팀 <span id="bcost">0</span></h2><div id="blue" class="drop"></div></article><article class="report"><h2>VS</h2><div><strong id="bwin">50.0%</strong> : <strong id="rwin">50.0%</strong></div><p id="message">10명을 선택해주세요.</p><button id="record" class="btn btn-secondary" disabled>이 팀으로 기록</button><button id="discordCopy" class="btn btn-ghost" disabled>Discord용 복사</button><button id="discordSend" class="btn btn-riot" disabled>Discord 채널 전송</button><button id="openAuctionFromDraft" class="btn btn-auction" disabled>이 10명으로 토큰 경매</button><small id="discordStatus">Webhook 확인 중</small></article><article class="red"><h2>레드팀 <span id="rcost">0</span></h2><div id="red" class="drop"></div></article></div></section>
 
 <section id="auction" class="page">
   <div class="heading auction-heading">
@@ -310,7 +346,12 @@
   <section id="auctionComplete" class="auction-complete hidden">
     <span class="step-badge">COMPLETE</span>
     <h2>경매가 완료되었습니다!</h2>
-    <p>최종 팀 구성이 내전 짜기 화면에도 반영되었습니다.</p>
+    <p>최종 팀 구성과 예상 승률입니다.</p>
+    <div class="auction-final-winrate">
+      <div class="final-winrate-team blue"><span>BLUE WIN RATE</span><strong id="auctionBlueWinRate">50.0%</strong><small id="auctionBlueFinalScore">0점</small></div>
+      <div class="final-winrate-vs">VS</div>
+      <div class="final-winrate-team red"><span>RED WIN RATE</span><strong id="auctionRedWinRate">50.0%</strong><small id="auctionRedFinalScore">0점</small></div>
+    </div>
     <div class="complete-actions">
       <button id="auctionGoDraft" class="btn btn-primary">최종 팀 확인</button>
       <button id="auctionRecordMatch" class="btn btn-secondary">이 팀으로 경기 기록</button>
@@ -320,8 +361,19 @@
 </section>
 
 <section id="matches" class="page"><div class="heading"><div><b>MATCH ARCHIVE</b><h1>경기 기록</h1></div><button id="forceRecord" class="btn btn-danger">강제 기록</button></div><div id="recentModified" class="recent-modified hidden"></div><div id="matchList"></div></section>
-<section id="stats" class="page"><div class="heading"><div><b>STATISTICS</b><h1>멤버 통계</h1></div></div><div class="table"><table><thead><tr><th>순위</th><th>멤버</th><th>솔랭</th><th>경기</th><th>승/패</th><th>승률</th><th>MVP</th><th>평균 K/D/A</th><th>코스트</th></tr></thead><tbody id="ranking"></tbody></table></div></section>
+<section id="stats" class="page"><div class="heading"><div><b>STATISTICS</b><h1>멤버 통계</h1></div></div><div class="table"><table><thead><tr><th>순위</th><th>멤버</th><th>솔랭</th><th>경기</th><th>승/패</th><th>승률</th><th>MVP</th><th>평균 K/D/A</th><th>코스트</th></tr></thead><tbody id="ranking"></tbody></table></div><div class="balance-tuning-panel">
+<h2>밸런스 투표 기반 가중치 분석</h2>
+<p id="balanceTuningMessage">투표 데이터를 불러오는 중입니다.</p>
+<div id="balanceTuningValues" class="tuning-values"></div>
+<button id="applyRecommendedWeights" class="btn btn-primary">추천 가중치 적용</button>
+</div></section>
 </main>
+<div id="teamForceModal" class="modal"><div class="modalbox"><button type="button" class="x">×</button>
+<h2>자동 팀 구성이 막혔습니다</h2>
+<p id="teamForceReason" class="notice"></p>
+<div id="teamForceSuggestions" class="force-suggestions"></div>
+<div class="form-actions"><button type="button" class="btn btn-ghost modal-cancel">라인 다시 수정</button><button id="forceTeamBuild" type="button" class="btn btn-danger">강제로 팀 짜기</button></div>
+</div></div>
 <div id="riotBulkModal" class="modal"><div class="modalbox wide"><button type="button" class="x">×</button><h2>Riot 일괄 갱신 대상 선택</h2><p class="notice">수동 티어가 있는 멤버는 기본적으로 티어를 보존합니다. 실제 Riot 티어로 초기화할 사람만 ‘티어 덮어쓰기’를 체크하세요.</p><div id="riotBulkList" class="riot-bulk-list"></div><div class="form-actions"><button type="button" class="btn btn-ghost modal-cancel">취소</button><button id="runBulkRiotRefresh" type="button" class="btn btn-riot">선택 인원 갱신</button></div></div></div>
 <div id="memberModal" class="modal"><form id="memberForm" class="modalbox wide"><button type="button" class="x">×</button><h2>멤버 등록·수정</h2><input id="mid" type="hidden"><input id="puuid" type="hidden">
 <label class="inline-check"><input id="externalYn" type="checkbox"> 외부인 등록 — Riot ID 없이도 티어·라인·챔피언 폭으로 초기점수를 계산합니다.</label>
@@ -331,7 +383,7 @@
 <div class="row"><label>티어<select id="tier"><option>UNRANKED</option><option>IRON</option><option>BRONZE</option><option>SILVER</option><option>GOLD</option><option>PLATINUM</option><option>EMERALD</option><option>DIAMOND</option><option>MASTER</option><option>GRANDMASTER</option><option>CHALLENGER</option></select></label><label>랭크<select id="rank"><option value="">-</option><option>IV</option><option>III</option><option>II</option><option>I</option></select></label><label>LP<input id="lp" type="number" value="0" min="0" max="100"></label><label>코스트<input id="score" type="number" placeholder="비우면 자동"></label></div>
 <label class="inline-check"><input id="manualTierYn" type="checkbox"> 수동 티어 고정 — Riot 갱신 시 체크한 경우에만 실제 Riot 티어로 덮어씁니다.</label>
 <fieldset><legend>라인별 선호도와 기용 가능한 챔피언 수</legend>
-<p class="field-help">각 사람은 1순위(2점) 한 개, 2순위(1점) 최대 한 개를 지정합니다. 나머지는 절대 안 감(0점)입니다.</p>
+<p class="field-help">라인마다 독립적으로 여러 개를 설정할 수 있습니다. 3점=다이아 이상 주라인(비상시에만 배치), 2점=솔랭 가능(우선 배치), 1점=자랭·5인큐 가능(보조 배치), 0점=절대 배치 금지.</p>
 <div id="laneProfileEditor" class="lane-profile-editor"></div>
 </fieldset>
 <div class="form-actions"><button type="button" class="btn btn-ghost modal-cancel">취소</button><button class="btn btn-primary">저장 후 점수 재계산</button></div></form></div>
@@ -340,6 +392,16 @@
 <div id="memberDetailModal" class="modal"><div class="modalbox wide"><button type="button" class="x">×</button><div id="memberDetail"></div></div></div>
 <div id="detailModal" class="modal"><div class="modalbox wide"><button type="button" class="x">×</button><div id="detail"></div><div class="form-actions"><button id="editMatchButton" class="btn btn-primary hidden">이 기록 수정</button></div></div></div>
 
+
+<div id="cinematicOverlay" class="cinematic-overlay hidden" aria-live="assertive">
+  <video id="cinematicVideo" class="cinematic-video" muted playsinline preload="auto"></video>
+  <div class="cinematic-shade"></div>
+  <div id="cinematicText" class="cinematic-text">
+    <span id="cinematicKicker">RIFT ARENA</span>
+    <h2 id="cinematicTitle">완벽한 밸런스!</h2>
+    <p id="cinematicSubtitle"></p>
+  </div>
+</div>
 
 <div id="auctionEventOverlay" class="auction-event-overlay hidden">
   <div id="auctionEventPanel" class="auction-event-panel">
@@ -354,6 +416,11 @@
     <span>RIFT ARENA</span>
     <h2>AUCTION COMPLETE</h2>
     <p>경매가 종료되었습니다</p>
+    <div class="complete-overlay-winrate">
+      <div><b>BLUE</b><strong id="completeOverlayBlueWinRate">50.0%</strong></div>
+      <em>VS</em>
+      <div><b>RED</b><strong id="completeOverlayRedWinRate">50.0%</strong></div>
+    </div>
   </div>
 </div>
 
@@ -378,4 +445,4 @@
 </div>
 
 <datalist id="championOptions"></datalist>
-<div id="toast"></div><script src="/app.js?v=3.4.12-hotfix2"></script></body></html>
+<div id="toast"></div><script src="/app.js?v=3.5.4"></script></body></html>

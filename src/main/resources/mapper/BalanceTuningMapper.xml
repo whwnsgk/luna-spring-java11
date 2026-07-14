@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.riftarena.balance.BalanceTuningMapper">
+ <select id="setting" resultType="map">
+  SELECT matchup_diff_weight "matchupDiffWeight",team_diff_weight "teamDiffWeight",
+         skill1_penalty "skill1Penalty",skill3_penalty "skill3Penalty",
+         crowding_penalty "crowdingPenalty",top_tier_support_penalty "topTierSupportPenalty"
+    FROM balance_weight_setting WHERE setting_id=1
+ </select>
+ <update id="updateSetting" parameterType="map">
+  UPDATE balance_weight_setting SET
+   matchup_diff_weight=#{matchupDiffWeight},team_diff_weight=#{teamDiffWeight},
+   skill1_penalty=#{skill1Penalty},skill3_penalty=#{skill3Penalty},
+   crowding_penalty=#{crowdingPenalty},top_tier_support_penalty=#{topTierSupportPenalty},
+   updated_at=CURRENT_TIMESTAMP WHERE setting_id=1
+ </update>
+ <insert id="upsertVote" parameterType="map">
+  INSERT INTO match_balance_vote(match_id,voter_key,vote_value)
+  VALUES(#{matchId},#{voterKey},#{voteValue})
+  ON CONFLICT(match_id,voter_key) DO UPDATE SET vote_value=EXCLUDED.vote_value,updated_at=CURRENT_TIMESTAMP
+ </insert>
+ <select id="voteSummary" resultType="map">
+  SELECT COUNT(*) FILTER(WHERE vote_value='PERFECT')::int "perfectCount",
+         COUNT(*) FILTER(WHERE vote_value='NORMAL')::int "normalCount",
+         COUNT(*) FILTER(WHERE vote_value='BAD')::int "badCount",
+         MAX(vote_value) FILTER(WHERE voter_key=#{voterKey}) "myVote"
+    FROM match_balance_vote WHERE match_id=#{matchId}
+ </select>
+ <select id="analysisRows" resultType="map">
+  SELECT f.matchup_diff "matchupDiff",f.team_diff "teamDiff",f.skill1_count "skill1Count",
+         f.skill3_count "skill3Count",
+         AVG(CASE v.vote_value WHEN 'PERFECT' THEN 3 WHEN 'NORMAL' THEN 2 ELSE 1 END) "voteScore"
+    FROM match_balance_feature f JOIN match_balance_vote v ON v.match_id=f.match_id
+   GROUP BY f.match_id,f.matchup_diff,f.team_diff,f.skill1_count,f.skill3_count
+ </select>
+ <insert id="insertFeature" parameterType="map">
+  INSERT INTO match_balance_feature(match_id,matchup_diff,team_diff,skill1_count,skill2_count,skill3_count,crowding_count,top_tier_support_count,algorithm_score)
+  VALUES(#{matchId},COALESCE(#{matchupDiff},0),COALESCE(#{teamDiff},0),COALESCE(#{skill1Count},0),COALESCE(#{skill2Count},0),COALESCE(#{skill3Count},0),COALESCE(#{crowdingCount},0),COALESCE(#{topTierSupportCount},0),COALESCE(#{algorithmScore},0))
+  ON CONFLICT(match_id) DO UPDATE SET matchup_diff=EXCLUDED.matchup_diff,team_diff=EXCLUDED.team_diff,
+   skill1_count=EXCLUDED.skill1_count,skill2_count=EXCLUDED.skill2_count,skill3_count=EXCLUDED.skill3_count,
+   crowding_count=EXCLUDED.crowding_count,top_tier_support_count=EXCLUDED.top_tier_support_count,
+   algorithm_score=EXCLUDED.algorithm_score
+ </insert>
+</mapper>

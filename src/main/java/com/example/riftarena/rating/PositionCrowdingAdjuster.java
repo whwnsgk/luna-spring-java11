@@ -31,7 +31,7 @@ public final class PositionCrowdingAdjuster {
    int basePenalty=excess*PENALTY_PER_EXCESS;
    double multiplier=penaltyMultiplier(source,primary);
    int penalty=(int)Math.round(basePenalty*multiplier);
-   int effective=Math.max(600,original-penalty);
+   int effective=Math.max(0,original-penalty);
 
    member.put("originalBalanceScore",original);
    member.put("positionCrowdingPenalty",penalty);

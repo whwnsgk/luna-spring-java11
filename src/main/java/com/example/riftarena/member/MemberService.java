@@ -67,8 +67,6 @@ public class MemberService {
    throw new IllegalArgumentException("탑/정글/미드/원딜/서폿 5개 라인 정보를 모두 입력해주세요.");
 
   Set<String> lanes=new HashSet<>();
-  int primaryCount=0;
-  int secondaryCount=0;
   for(Map<String,Object> profile:profiles){
    String lane=textValue(profile,"positionCode","position_code").toUpperCase(Locale.ROOT);
    int preference=intValue(profile,"preferenceScore","preference_score");
@@ -76,15 +74,11 @@ public class MemberService {
 
    if(!Arrays.asList("TOP","JUNGLE","MID","ADC","SUPPORT").contains(lane)||!lanes.add(lane))
     throw new IllegalArgumentException("라인 정보가 중복되었거나 잘못되었습니다.");
-   if(preference<0||preference>2)
-    throw new IllegalArgumentException("라인 선호도는 0, 1, 2만 가능합니다.");
+   if(preference<0||preference>3)
+    throw new IllegalArgumentException("라인 숙련도는 0, 1, 2, 3만 가능합니다.");
    if(championCount<0)
     throw new IllegalArgumentException("기용 가능한 챔피언 수는 0 이상이어야 합니다.");
-   if(preference==2)primaryCount++;
-   if(preference==1)secondaryCount++;
   }
-  if(primaryCount!=1)throw new IllegalArgumentException("1순위 라인은 정확히 하나만 선택해주세요.");
-  if(secondaryCount>1)throw new IllegalArgumentException("2순위 라인은 최대 하나만 선택할 수 있습니다.");
  }
  @SuppressWarnings("unchecked")
  @Transactional public Map<String,Object> refreshRiot(Long id,boolean overwriteManualTier){
