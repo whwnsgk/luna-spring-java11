@@ -1,7 +1,7 @@
 console.info("RIFT ARENA build v3.4.8 loaded");
 const S={members:[],selected:[],blue:[],red:[],matches:[],seasons:[],seasonId:null,activeSeasonId:null,drag:null,discord:false,auction:null,draftAdjustments:{}};
 const POS=["TOP","JUNGLE","MID","ADC","SUPPORT","FILL"],PN={TOP:"탑",JUNGLE:"정글",MID:"미드",ADC:"원딜",SUPPORT:"서폿",FILL:"올라운더"};
-document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();setupMainHeroVideo();setupCalcGuideImage();renderLaneProfileEditor();await Promise.all([loadSeasons(),loadDdragonVersion()]);await loadChampions();await all();await discordState();dateNow()});
+document.addEventListener("DOMContentLoaded",async()=>{nav();modals();events();setupMainHeroVideo();setupCalcGuideImage();renderLaneProfileEditor();preloadLaneVoices();await Promise.all([loadSeasons(),loadDdragonVersion()]);await loadChampions();await all();await discordState();dateNow()});
 function nav(){document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>{document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));document.querySelectorAll(".nav-btn").forEach(n=>n.classList.toggle("active",n.dataset.page===b.dataset.page));document.getElementById(b.dataset.page).classList.add("active");DraftBgm.sync(b.dataset.page);window.scrollTo({top:0,behavior:"smooth"})})}
 function modals(){document.querySelectorAll(".x,.modal-cancel").forEach(x=>x.onclick=()=>x.closest(".modal").classList.remove("open"));document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("open")})}
 
@@ -85,6 +85,196 @@ function syncExternalFields(){
 }
 
 
+
+const LANE_CUTSCENE_ORDER=["TOP","JUNGLE","MID","ADC","SUPPORT"];
+const LANE_CUTSCENE_NAMES={TOP:"TOP LANE",JUNGLE:"JUNGLE",MID:"MID LANE",ADC:"BOT LANE",SUPPORT:"SUPPORT"};
+const LANE_VOICE_FILES={
+ TOP:["/media/voice-top.mp3","/media/voice-top.wav","/media/voice-top.m4a","/media/voice-top.ogg","/voice-top.mp3","/voice-top.wav"],
+ JUNGLE:["/media/voice-jungle.mp3","/media/voice-jungle.wav","/media/voice-jungle.m4a","/media/voice-jungle.ogg","/voice-jungle.mp3","/voice-jungle.wav"],
+ MID:["/media/voice-mid.mp3","/media/voice-mid.wav","/media/voice-mid.m4a","/media/voice-mid.ogg","/voice-mid.mp3","/voice-mid.wav"],
+ ADC:["/media/voice-adc.mp3","/media/voice-adc.wav","/media/voice-adc.m4a","/media/voice-adc.ogg","/voice-adc.mp3","/voice-adc.wav"],
+ SUPPORT:["/media/voice-support.mp3","/media/voice-support.wav","/media/voice-support.m4a","/media/voice-support.ogg","/voice-support.mp3","/voice-support.wav"]
+};
+const LANE_VOICE_CACHE=new Map();
+let activeLaneVoice=null;
+
+async function resolveLaneVoiceUrl(lane){
+ if(LANE_VOICE_CACHE.has(lane))return LANE_VOICE_CACHE.get(lane);
+ const promise=(async()=>{
+  for(const url of (LANE_VOICE_FILES[lane]||[])){
+   try{
+    const response=await fetch(url,{cache:"no-store"});
+    if(response.ok){
+     const blob=await response.blob();
+     return URL.createObjectURL(blob);
+    }
+   }catch(e){}
+  }
+  return null;
+ })();
+ LANE_VOICE_CACHE.set(lane,promise);
+ return promise;
+}
+
+function preloadLaneVoices(){
+ LANE_CUTSCENE_ORDER.forEach(lane=>resolveLaneVoiceUrl(lane));
+}
+let laneCutsceneTimer=null;
+let laneCutsceneIndex=0;
+let laneCutsceneSequence=null;
+let laneCutsceneResolve=null;
+
+function inferAuctionLaneAssignments(state){
+ const members=[...(state?.blueTeam||[]),...(state?.redTeam||[])];
+ const inferTeam=(team)=>{
+  const available=new Set(LANE_CUTSCENE_ORDER);
+  const assigned=[];
+  const skill=(m,lane)=>{
+   const profile=(m.laneProfiles||[]).find(p=>p.positionCode===lane);
+   return Number(profile?.preferenceScore||0);
+  };
+  const most=(m)=>String(m.mostPosition||"").toUpperCase();
+
+  // 모스트 라인을 먼저 배정합니다.
+  [...team].sort((a,b)=>{
+   const am=most(a),bm=most(b);
+   return Number(available.has(bm))-Number(available.has(am));
+  }).forEach(m=>{
+   const preferred=most(m);
+   if(available.has(preferred)){
+    assigned.push({...m,assignedPosition:preferred});
+    available.delete(preferred);
+   }
+  });
+
+  // 남은 멤버는 라인 숙련도가 높은 순으로 빈 라인에 배정합니다.
+  team.filter(m=>!assigned.some(x=>+x.memberId===+m.memberId)).forEach(m=>{
+   const lane=[...available].sort((a,b)=>skill(m,b)-skill(m,a))[0]||[...available][0];
+   assigned.push({...m,assignedPosition:lane});
+   available.delete(lane);
+  });
+  return assigned;
+ };
+ return {
+  blueTeam:inferTeam(state?.blueTeam||[]),
+  redTeam:inferTeam(state?.redTeam||[])
+ };
+}
+
+function buildLaneCutsceneSequence(blueTeam,redTeam){
+ return LANE_CUTSCENE_ORDER.map(lane=>({
+  lane,
+  blue:(blueTeam||[]).find(x=>x.assignedPosition===lane)||null,
+  red:(redTeam||[]).find(x=>x.assignedPosition===lane)||null
+ }));
+}
+
+function setCutsceneChampionImage(img,member){
+ const champion=member?.mostChampionName||member?.mostChampion||member?.championName||"";
+ const url=championImageUrl(champion);
+ if(url){
+  img.src=url;
+  img.alt=championLabel(champion);
+  img.classList.remove("hidden");
+ }else{
+  img.removeAttribute("src");
+  img.alt="";
+  img.classList.add("hidden");
+ }
+}
+
+function stopLaneVoice(){
+ if(activeLaneVoice){
+  activeLaneVoice.pause();
+  activeLaneVoice.currentTime=0;
+  activeLaneVoice=null;
+ }
+ const fallback=document.getElementById("laneCutsceneVoice");
+ if(fallback){
+  fallback.pause();
+  fallback.currentTime=0;
+ }
+}
+
+async function playLaneVoiceOnce(lane){
+ stopLaneVoice();
+ const resolved=await resolveLaneVoiceUrl(lane);
+ if(!resolved){
+  console.warn(`[라인 컷씬] ${lane} 음성 파일을 찾지 못했습니다.`);
+  return;
+ }
+ const audio=new Audio(resolved);
+ activeLaneVoice=audio;
+ audio.volume=1;
+ audio.loop=false;
+ audio.preload="auto";
+ try{
+  await audio.play();
+ }catch(error){
+  if(error?.name!=="AbortError"){
+   console.warn(`[라인 컷씬] ${lane} 음성 재생이 차단되었습니다.`,error);
+  }
+ }
+}
+
+function finishLaneCutscene(){
+ clearTimeout(laneCutsceneTimer);
+ stopLaneVoice();
+ const overlay=document.getElementById("laneCutsceneOverlay");
+ overlay?.classList.add("hidden");
+ overlay?.classList.remove("play");
+ const resolve=laneCutsceneResolve;
+ laneCutsceneResolve=null;
+ laneCutsceneSequence=null;
+ laneCutsceneIndex=0;
+ if(resolve)resolve();
+}
+
+function showLaneCutsceneStep(){
+ const overlay=document.getElementById("laneCutsceneOverlay");
+ if(!overlay||!laneCutsceneSequence||laneCutsceneIndex>=laneCutsceneSequence.length){
+  finishLaneCutscene();
+  return;
+ }
+ const step=laneCutsceneSequence[laneCutsceneIndex];
+ const lane=step.lane;
+ laneCutsceneRound.textContent=LANE_CUTSCENE_NAMES[lane]||lane;
+ laneCutsceneTitle.textContent=`${PN[lane]||lane} 라인`;
+ laneBlueName.textContent=step.blue?.realName||"-";
+ laneRedName.textContent=step.red?.realName||"-";
+ laneCutsceneSubtitle.textContent=`${step.blue?.realName||"-"} VS ${step.red?.realName||"-"}`;
+ setCutsceneChampionImage(laneBlueChampionImage,step.blue);
+ setCutsceneChampionImage(laneRedChampionImage,step.red);
+
+ overlay.dataset.lane=lane.toLowerCase();
+ overlay.classList.remove("hidden","play");
+ void overlay.offsetWidth;
+ overlay.classList.add("play");
+
+ laneCutsceneProgressBar.style.animation="none";
+ void laneCutsceneProgressBar.offsetWidth;
+ laneCutsceneProgressBar.style.animation="laneCutsceneProgress 3s linear forwards";
+
+ stopLaneVoice();
+ playLaneVoiceOnce(lane);
+
+ laneCutsceneTimer=setTimeout(()=>{
+  laneCutsceneIndex++;
+  showLaneCutsceneStep();
+ },3000);
+}
+
+function playLaneCutsceneSequence(blueTeam,redTeam){
+ finishLaneCutscene();
+ laneCutsceneSequence=buildLaneCutsceneSequence(blueTeam,redTeam);
+ laneCutsceneIndex=0;
+ return new Promise(resolve=>{
+  laneCutsceneResolve=resolve;
+  laneCutsceneOverlay.classList.remove("hidden");
+  showLaneCutsceneStep();
+ });
+}
+
 let cinematicTimer=null;let pendingAuctionCinematicTimer=null;
 const CINEMATIC_FILES={
  balance:["/media/team-balance-video.mp4","/media/event-video.mp4"],
@@ -165,6 +355,7 @@ function events(){
  runBulkRiotRefresh.onclick=refreshAllRiotMembers;
  forceTeamBuild.onclick=()=>{teamForceModal.classList.remove("open");runForcedTeamBuild();};
  if(document.getElementById("applyRecommendedWeights"))applyRecommendedWeights.onclick=applyBalanceRecommendations;
+ if(document.getElementById("skipLaneCutscene"))skipLaneCutscene.onclick=finishLaneCutscene;
  clear.onclick=()=>{S.selected=[];S.blue=[];S.red=[];S.draftAdjustments={};drawDraft();report()};
  auto.onclick=balance;record.onclick=()=>openMatch(S.blue,S.red);discordCopy.onclick=copyDiscord;discordSend.onclick=sendDiscord;matchForm.onsubmit=saveMatch;forceRecord.onclick=openForceMatch;editMatchButton.onclick=editCurrentMatch;
  seasonFilter.onchange=async()=>{S.seasonId=seasonFilter.value?+seasonFilter.value:null;await refreshSeasonData()};
@@ -336,7 +527,20 @@ async function refreshAllRiotMembers(){
 }
 
 async function lookup(){try{let d=await api(`/api/members/riot/lookup?gameName=${encodeURIComponent(normalizeRiotGameName(gameName.value))}&tagLine=${encodeURIComponent(normalizeRiotTagLine(tagLine.value))}`);puuid.value=d.puuid;gameName.value=d.gameName;tagLine.value=d.tagLine;riotResult.textContent=`확인 완료: ${d.gameName}#${d.tagLine}`}catch(e){riotResult.textContent=e.message}}
-function chip(m){const a=S.draftAdjustments?.[m.memberId];const score=a?.effectiveBalanceScore??m.balanceScore;const penalty=a?.positionCrowdingPenalty||0;return `<div class="memberchip" draggable="true" data-id="${m.memberId}"><span><b>${esc(m.realName)}</b><small> ${m.soloTier||"UNRANKED"} · ${(m.preferredPositions||[]).map(x=>PN[x]).join("/")}${penalty?` · 과밀 -${penalty}`:""}</small></span><strong>${score}</strong></div>`}
+function chip(m){
+ const a=S.draftAdjustments?.[m.memberId];
+ const score=a?.effectiveBalanceScore??a?.balanceScore??m.balanceScore;
+ const penalty=a?.positionCrowdingPenalty||0;
+ const assigned=a?.assignedPosition;
+ const assignedSkill=a?.assignedSkill;
+ const laneBadge=assigned?`<em class="assigned-lane-badge lane-${assigned.toLowerCase()}">${PN[assigned]||assigned}</em>`:"";
+ const skillText=assignedSkill!==undefined?` · 숙련도 ${assignedSkill}`:"";
+ return `<div class="memberchip" draggable="true" data-id="${m.memberId}">
+   ${laneBadge}
+   <span><b>${esc(m.realName)}</b><small>${m.soloTier||"UNRANKED"} · ${(m.preferredPositions||[]).map(x=>PN[x]).join("/")}${skillText}${penalty?` · 과밀 -${penalty}`:""}</small></span>
+   <strong>${score}</strong>
+ </div>`
+}
 function drawDraft(){
  let used=new Set([...S.selected,...S.blue,...S.red].map(Number));
  pool.innerHTML=S.members.filter(m=>!used.has(+m.memberId)).map(chip).join("")||`<div class="empty">남은 멤버 없음</div>`;
@@ -419,13 +623,87 @@ window.selectRecommendation=(index,cinematic=false)=>{
  S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));
  S.selected=[];S.blue=r.blueTeam.map(x=>x.memberId);S.red=r.redTeam.map(x=>x.memberId);
  document.querySelectorAll(".recommendation-card").forEach((x,i)=>x.classList.toggle("active",i===index));
- drawDraft();showReport(r);
- if(cinematic)playCinematic("balance","완벽한 밸런스!",`추천 1 · 맞라인 차이 ${r.matchupDifference}`,3200);
+ drawDraft();showReport(r);renderTeamFormulaDetails(r);
+ if(cinematic){
+  playCinematic("balance","완벽한 밸런스!",`추천 1 · 맞라인 차이 ${r.matchupDifference}`,3200);
+  setTimeout(()=>playLaneCutsceneSequence(r.blueTeam||[],r.redTeam||[]),3400);
+ }
 };
 
-async function evaluate(){if(S.blue.length===5&&S.red.length===5){let r=await api("/api/team-balance/evaluate",{method:"POST",body:JSON.stringify({blueMemberIds:S.blue,redMemberIds:S.red})});S.selectedRecommendation=r;S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));drawDraft();showReport(r)}else{S.draftAdjustments={};report()}}
+async function evaluate(){if(S.blue.length===5&&S.red.length===5){let r=await api("/api/team-balance/evaluate",{method:"POST",body:JSON.stringify({blueMemberIds:S.blue,redMemberIds:S.red})});S.selectedRecommendation=r;S.draftAdjustments=Object.fromEntries([...(r.blueTeam||[]),...(r.redTeam||[])].map(x=>[x.memberId,x]));drawDraft();showReport(r);renderTeamFormulaDetails(r)}else{S.draftAdjustments={};report();renderTeamFormulaDetails(null)}}
+
+function renderTeamFormulaDetails(r){
+ const box=document.getElementById("teamFormulaDetails");
+ if(!box)return;
+ if(!r){
+  box.classList.add("hidden");
+  box.innerHTML="";
+  return;
+ }
+ const skillLabel={0:"0 · 강제 배치",1:"1 · 자랭/5인큐",2:"2 · 솔랭 가능",3:"3 · 다이아 이상 주라인"};
+ const memberRow=(m,team)=>{
+  const original=Number(m.originalBalanceScore??m.balanceScore??0);
+  const penalty=Number(m.positionCrowdingPenalty||0);
+  const effective=Number(m.effectiveBalanceScore??m.balanceScore??0);
+  const lane=m.assignedPosition||"-";
+  const skill=Number(m.assignedSkill??0);
+  const reasons=[];
+  reasons.push(`${PN[lane]||lane} 배치`);
+  reasons.push(`숙련도 ${skillLabel[skill]||skill}`);
+  const crowdingPosition=m.positionCrowdingPosition||"";
+  const crowdingCount=Number(m.positionCrowdingCount||0);
+  const capablePositions=Object.entries(m.positionCrowdingCapablePositions||{}).map(([lane,score])=>`${PN[lane]||lane} ${score}점`);
+  if(penalty>0){
+   reasons.push(`솔랭 가능 이상 라인 ${capablePositions.join("/")||"-"} 중 ${PN[crowdingPosition]||crowdingPosition} 과밀이 가장 큼`);
+   reasons.push(`${PN[crowdingPosition]||crowdingPosition} 2·3점 인원 ${crowdingCount}명 · 기준 2명 초과 → 과밀 -${penalty}`);
+  }else if(capablePositions.length){
+   reasons.push(`솔랭 가능 이상 라인 ${capablePositions.join("/")} · 모든 라인 기준 2명 이하 → 과밀 보정 없음`);
+  }else{
+   reasons.push("2점·3점 라인 미설정 → 과밀 보정 대상 아님");
+  }
+  if(skill===1)reasons.push("1점 배치 페널티 적용");
+  if(skill===3)reasons.push("3점 비상 배치 페널티 적용");
+  if(skill===0)reasons.push("강제 0점 배치 페널티 적용");
+  return `<div class="formula-member-row ${team.toLowerCase()}">
+    <div class="formula-member-head"><em>${PN[lane]||lane}</em><b>${esc(m.realName)}</b><strong>${effective}</strong></div>
+    <p>기본 ${original}${penalty?` → 과밀 -${penalty}`:""} → 유효 ${effective}</p>
+    <small>${reasons.join(" · ")}</small>
+  </div>`;
+ };
+ const matchupRows=["TOP","JUNGLE","MID","ADC","SUPPORT"].map(lane=>{
+  const b=(r.blueTeam||[]).find(x=>x.assignedPosition===lane);
+  const red=(r.redTeam||[]).find(x=>x.assignedPosition===lane);
+  const bs=Number(b?.effectiveBalanceScore??b?.balanceScore??0);
+  const rs=Number(red?.effectiveBalanceScore??red?.balanceScore??0);
+  return `<div class="matchup-formula-row"><span>${PN[lane]}</span><b>${esc(b?.realName||"-")} ${bs}</b><em>차이 ${Math.abs(bs-rs)}</em><b>${esc(red?.realName||"-")} ${rs}</b></div>`;
+ }).join("");
+ box.classList.remove("hidden");
+ const allAssigned=[...(r.blueTeam||[]),...(r.redTeam||[])];
+ const crowdingSummary=allAssigned.find(x=>x.positionCrowdingCapableLaneCounts)?.positionCrowdingCapableLaneCounts||{};
+ const crowdingText=Object.keys(crowdingSummary).length
+  ?["TOP","JUNGLE","MID","ADC","SUPPORT"].map(lane=>{
+     const count=Number(crowdingSummary[lane]||0);
+     return `${PN[lane]} 2·3점 ${count}명${count>2?" · 과밀":" · 정상"}`;
+   }).join(" / ")
+  :"선택 인원 중 3점 주라인 데이터 없음";
+
+ box.innerHTML=`<div class="formula-summary">
+   <h2>이 추천에 적용된 산식</h2>
+   <p>맞라인 차이 <b>${r.matchupDifference}</b> · 팀 총점 차이 <b>${r.costDifference}</b> ·
+      2점 <b>${r.skill2Count}</b>명 · 1점 <b>${r.skill1Count}</b>명 ·
+      3점 <b>${r.skill3Count}</b>명 · 0점 <b>${r.skill0Count||0}</b>명</p>
+   <p class="formula-score">최종 알고리즘 평가점수: <strong>${r.algorithmScore}</strong></p>
+   <p class="crowding-summary"><b>포지션 과밀 판정:</b> ${crowdingText}</p>
+  </div>
+  <div class="matchup-formula-list"><h3>맞라인 배정</h3>${matchupRows}</div>
+  <div class="formula-team-grid">
+   <section><h3>BLUE 적용 내역</h3>${(r.blueTeam||[]).map(x=>memberRow(x,"BLUE")).join("")}</section>
+   <section><h3>RED 적용 내역</h3>${(r.redTeam||[]).map(x=>memberRow(x,"RED")).join("")}</section>
+  </div>`;
+}
+
 function showReport(r){bcost.textContent=r.blueCost;rcost.textContent=r.redCost;bwin.textContent=r.blueExpectedWinRate+"%";rwin.textContent=r.redExpectedWinRate+"%";message.textContent=r.algorithmMessage+" · 차이 "+r.costDifference}
-function report(){bcost.textContent=rcost.textContent="0";bwin.textContent=rwin.textContent="50.0%";message.textContent="10명을 선택해주세요."}
+function report(){bcost.textContent=rcost.textContent="0";bwin.textContent=rwin.textContent="50.0%";message.textContent="10명을 선택해주세요.";renderTeamFormulaDetails(null)}
 function openMatch(b,r){
  if(!S.seasons.length){toast("먼저 시즌을 생성해주세요.");seasonModal.classList.add("open");return}
  if(b.length!==5||r.length!==5)return;editingMatchId.value="";forceMode.value="N";matchModalTitle.textContent="경기 결과 등록";editMeta.classList.add("hidden");dateNow();if(S.activeSeasonId)matchSeason.value=S.activeSeasonId;players.innerHTML=teamRows("BLUE",b)+teamRows("RED",r);memo.value="";matchModal.classList.add("open")}
@@ -939,7 +1217,9 @@ function auctionTeamScore(team){
 function auctionWinRateState(a){
  const blueScore=auctionTeamScore(a?.blueTeam);
  const redScore=auctionTeamScore(a?.redTeam);
- const blue=1/(1+Math.pow(10,(redScore-blueScore)/400));
+ const blueAverage=blueScore/5;
+ const redAverage=redScore/5;
+ const blue=1/(1+Math.pow(10,(redAverage-blueAverage)/400));
  return {
   blueScore,
   redScore,
@@ -961,6 +1241,8 @@ function updateAuctionFinalWinRates(a){
 function showAuctionComplete(){
  updateAuctionFinalWinRates(auctionState);
  auctionCompleteOverlay.classList.remove('hidden');
+ const inferred=inferAuctionLaneAssignments(auctionState);
+ setTimeout(()=>playLaneCutsceneSequence(inferred.blueTeam,inferred.redTeam),3600);
  setTimeout(()=>auctionCompleteOverlay.classList.add('hidden'),4200);
 }
 

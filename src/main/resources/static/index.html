@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.5.4"></head>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rift Arena</title><link rel="stylesheet" href="/style.css?v=3.5.10"></head>
 <body>
 <header><div class="brand"><span class="brand-mark">RA</span><span>RIFT ARENA <small>롤 내전 관리실</small></span></div><nav><button class="nav-btn active" data-page="home">대시보드</button><button class="nav-btn" data-page="members">멤버</button><button class="nav-btn" data-page="draft">내전 짜기</button><button class="nav-btn" data-page="auction">토큰 경매</button><button class="nav-btn" data-page="matches">경기 기록</button><button class="nav-btn" data-page="stats">통계</button><button class="nav-btn" data-page="calc">산출근거</button></nav></header>
 <div class="seasonbar"><div><span>시즌</span><select id="seasonFilter"></select></div><button id="manageSeason" class="btn btn-ghost btn-small">시즌 관리</button></div>
@@ -183,7 +183,9 @@
     </div>
     <div id="selected" class="drop slots"></div>
   </article>
-</div><div id="teamRecommendations" class="team-recommendations hidden"></div><div class="teams"><article class="blue"><h2>블루팀 <span id="bcost">0</span></h2><div id="blue" class="drop"></div></article><article class="report"><h2>VS</h2><div><strong id="bwin">50.0%</strong> : <strong id="rwin">50.0%</strong></div><p id="message">10명을 선택해주세요.</p><button id="record" class="btn btn-secondary" disabled>이 팀으로 기록</button><button id="discordCopy" class="btn btn-ghost" disabled>Discord용 복사</button><button id="discordSend" class="btn btn-riot" disabled>Discord 채널 전송</button><button id="openAuctionFromDraft" class="btn btn-auction" disabled>이 10명으로 토큰 경매</button><small id="discordStatus">Webhook 확인 중</small></article><article class="red"><h2>레드팀 <span id="rcost">0</span></h2><div id="red" class="drop"></div></article></div></section>
+</div><div id="teamRecommendations" class="team-recommendations hidden"></div><div class="teams"><article class="blue"><h2>블루팀 <span id="bcost">0</span></h2><div id="blue" class="drop"></div></article><article class="report"><h2>VS</h2><div><strong id="bwin">50.0%</strong> : <strong id="rwin">50.0%</strong></div><p id="message">10명을 선택해주세요.</p><button id="record" class="btn btn-secondary" disabled>이 팀으로 기록</button><button id="discordCopy" class="btn btn-ghost" disabled>Discord용 복사</button><button id="discordSend" class="btn btn-riot" disabled>Discord 채널 전송</button><button id="openAuctionFromDraft" class="btn btn-auction" disabled>이 10명으로 토큰 경매</button><small id="discordStatus">Webhook 확인 중</small></article><article class="red"><h2>레드팀 <span id="rcost">0</span></h2><div id="red" class="drop"></div></article></div>
+<div id="teamFormulaDetails" class="team-formula-details hidden"></div>
+</section>
 
 <section id="auction" class="page">
   <div class="heading auction-heading">
@@ -393,6 +395,32 @@
 <div id="detailModal" class="modal"><div class="modalbox wide"><button type="button" class="x">×</button><div id="detail"></div><div class="form-actions"><button id="editMatchButton" class="btn btn-primary hidden">이 기록 수정</button></div></div></div>
 
 
+<div id="laneCutsceneOverlay" class="lane-cutscene-overlay hidden" aria-live="assertive">
+  <div class="lane-cutscene-bg"></div>
+  <div class="lane-cutscene-flare"></div>
+  <div class="lane-cutscene-content">
+    <span id="laneCutsceneRound">TOP LANE</span>
+    <h2 id="laneCutsceneTitle">탑 라인</h2>
+    <div class="lane-versus">
+      <div class="lane-player blue">
+        <small>BLUE</small>
+        <strong id="laneBlueName">-</strong>
+        <img id="laneBlueChampionImage" class="lane-champion-image hidden" alt="">
+      </div>
+      <div class="lane-vs-mark">VS</div>
+      <div class="lane-player red">
+        <small>RED</small>
+        <strong id="laneRedName">-</strong>
+        <img id="laneRedChampionImage" class="lane-champion-image hidden" alt="">
+      </div>
+    </div>
+    <p id="laneCutsceneSubtitle">라인 매치업 공개</p>
+  </div>
+  <div class="lane-cutscene-progress"><span id="laneCutsceneProgressBar"></span></div>
+  <button id="skipLaneCutscene" class="lane-cutscene-skip" type="button">스킵</button>
+  <audio id="laneCutsceneVoice" preload="auto"></audio>
+</div>
+
 <div id="cinematicOverlay" class="cinematic-overlay hidden" aria-live="assertive">
   <video id="cinematicVideo" class="cinematic-video" muted playsinline preload="auto"></video>
   <div class="cinematic-shade"></div>
@@ -445,4 +473,4 @@
 </div>
 
 <datalist id="championOptions"></datalist>
-<div id="toast"></div><script src="/app.js?v=3.5.4"></script></body></html>
+<div id="toast"></div><script src="/app.js?v=3.5.10"></script></body></html>

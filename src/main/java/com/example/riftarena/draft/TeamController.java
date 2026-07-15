@@ -163,7 +163,14 @@ public class TeamController{
  private Map<String,Object> result(Candidate c,boolean emergency){
   List<Map<String,Object>> blueAssigned=assigned(c.blue,c.blueAssignment);
   List<Map<String,Object>> redAssigned=assigned(c.red,c.redAssignment);
-  double bp=1/(1+Math.pow(10,(c.redCost-c.blueCost)/400.0));
+  /*
+   * 팀 총점 차이를 개인 Elo 공식에 그대로 넣으면 5명의 점수가 합산되어
+   * 승률이 지나치게 극단적으로 나옵니다.
+   * 양 팀 평균 레이팅 차이로 변환한 뒤 Elo 기대 승률을 계산합니다.
+   */
+  double blueAverage=c.blueCost/5.0;
+  double redAverage=c.redCost/5.0;
+  double bp=1/(1+Math.pow(10,(redAverage-blueAverage)/400.0));
 
   Map<String,Object>m=new LinkedHashMap<>();
   m.put("blueTeam",blueAssigned);m.put("redTeam",redAssigned);m.put("blueCost",c.blueCost);m.put("redCost",c.redCost);

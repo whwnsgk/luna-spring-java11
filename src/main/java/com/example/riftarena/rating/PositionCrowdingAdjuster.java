@@ -15,71 +15,127 @@ public final class PositionCrowdingAdjuster {
 
  public static List<Map<String,Object>> adjust(List<Map<String,Object>> members){
   List<Map<String,Object>> result=new ArrayList<>();
-  Map<String,Integer> primaryCounts=new LinkedHashMap<>();
-  for(String lane:LANES)primaryCounts.put(lane,0);
-
-  for(Map<String,Object> member:members){
-   String primary=primaryPosition(member);
-   if(LANES.contains(primary))primaryCounts.put(primary,primaryCounts.get(primary)+1);
-  }
+  Map<String,Integer> capableLaneCounts=capableLaneCounts(members);
 
   for(Map<String,Object> source:members){
    Map<String,Object> member=new LinkedHashMap<>(source);
    int original=number(source.get("balanceScore"),1500);
-   String primary=primaryPosition(source);
-   int excess=LANES.contains(primary)?Math.max(0,primaryCounts.get(primary)-REQUIRED_PER_LANE):0;
-   int basePenalty=excess*PENALTY_PER_EXCESS;
-   double multiplier=penaltyMultiplier(source,primary);
-   int penalty=(int)Math.round(basePenalty*multiplier);
-   int effective=Math.max(0,original-penalty);
+   Map<String,Integer> capableLanes=capablePositions(source);
+
+   String appliedLane="";
+   int appliedLaneCount=0;
+   int appliedPreference=0;
+   int maxPenalty=0;
+
+   /*
+    * 2점(솔랭 가능)과 3점(다이아 이상 주라인)을 모두 라인 과밀 인원으로 집계합니다.
+    * 한 사람이 여러 라인을 2/3점으로 설정했다면 전부 검사하고,
+    * 가장 큰 과밀 페널티 하나만 개인 유효 레이팅에 적용합니다.
+    */
+   for(Map.Entry<String,Integer> entry:capableLanes.entrySet()){
+    String lane=entry.getKey();
+    int preference=entry.getValue();
+    int count=capableLaneCounts.getOrDefault(lane,0);
+    int excess=Math.max(0,count-REQUIRED_PER_LANE);
+    int basePenalty=excess*PENALTY_PER_EXCESS;
+
+    // 3점은 강한 주라인이므로 전액, 2점은 솔랭 가능 라인이므로 70% 적용합니다.
+    double ownLaneMultiplier=preference==3?1.0:0.70;
+    int candidatePenalty=(int)Math.round(basePenalty*ownLaneMultiplier);
+
+    // 다른 대체 라인이 있으면 페널티를 추가 완화합니다.
+    candidatePenalty=(int)Math.round(candidatePenalty*alternativeMultiplier(source,lane));
+
+    if(candidatePenalty>maxPenalty){
+     maxPenalty=candidatePenalty;
+     appliedLane=lane;
+     appliedLaneCount=count;
+     appliedPreference=preference;
+    }
+   }
+
+   int effective=Math.max(0,original-maxPenalty);
 
    member.put("originalBalanceScore",original);
-   member.put("positionCrowdingPenalty",penalty);
-   member.put("positionCrowdingPosition",primary);
-   member.put("positionCrowdingCount",LANES.contains(primary)?primaryCounts.get(primary):0);
+   member.put("positionCrowdingPenalty",maxPenalty);
+   member.put("positionCrowdingPosition",appliedLane);
+   member.put("positionCrowdingCount",appliedLaneCount);
+   member.put("positionCrowdingPreference",appliedPreference);
+   member.put("positionCrowdingCapablePositions",new LinkedHashMap<>(capableLanes));
+   member.put("positionCrowdingCapableLaneCounts",new LinkedHashMap<>(capableLaneCounts));
    member.put("effectiveBalanceScore",effective);
-   // 기존 화면과 경매 로직이 balanceScore를 읽으므로 방/조합 내부 복사본만 유효 점수로 교체합니다.
    member.put("balanceScore",effective);
    result.add(member);
   }
   return result;
  }
 
- public static Map<String,Integer> primaryCounts(List<Map<String,Object>> members){
+ /**
+  * 2점 또는 3점인 라인을 모두 집계합니다.
+  */
+ public static Map<String,Integer> capableLaneCounts(List<Map<String,Object>> members){
   Map<String,Integer> counts=new LinkedHashMap<>();
   for(String lane:LANES)counts.put(lane,0);
+
   for(Map<String,Object> member:members){
-   String primary=primaryPosition(member);
-   if(counts.containsKey(primary))counts.put(primary,counts.get(primary)+1);
+   for(String lane:capablePositions(member).keySet()){
+    counts.put(lane,counts.get(lane)+1);
+   }
   }
   return counts;
  }
 
- @SuppressWarnings("unchecked")
- private static String primaryPosition(Map<String,Object> member){
-  Object raw=member.get("laneProfiles");
-  if(!(raw instanceof List))return "";
-  for(Object value:(List<Object>)raw){
-   if(!(value instanceof Map))continue;
-   Map<String,Object> profile=(Map<String,Object>)value;
-   String position=String.valueOf(profile.get("positionCode")).trim().toUpperCase(Locale.ROOT);
-   int preference=number(profile.get("preferenceScore"),0);
-   if(LANES.contains(position)&&preference==2)return position;
-  }
-  return "";
+ public static Map<String,Integer> mainLaneCounts(List<Map<String,Object>> members){
+  return capableLaneCounts(members);
+ }
+
+ public static Map<String,Integer> primaryCounts(List<Map<String,Object>> members){
+  return capableLaneCounts(members);
  }
 
  @SuppressWarnings("unchecked")
- private static double penaltyMultiplier(Map<String,Object> member,String primary){
+ private static Map<String,Integer> capablePositions(Map<String,Object> member){
+  Map<String,Integer> result=new LinkedHashMap<>();
   Object raw=member.get("laneProfiles");
-  if(!(raw instanceof List))return 1.0;
+  if(!(raw instanceof List))return result;
+
   for(Object value:(List<Object>)raw){
    if(!(value instanceof Map))continue;
    Map<String,Object> profile=(Map<String,Object>)value;
    String position=String.valueOf(profile.get("positionCode")).trim().toUpperCase(Locale.ROOT);
    int preference=number(profile.get("preferenceScore"),0);
-   if(LANES.contains(position)&&!position.equals(primary)&&preference==1)return 0.70;
+
+   if(LANES.contains(position)&&preference>=2){
+    result.put(position,preference);
+   }
   }
+  return result;
+ }
+
+ @SuppressWarnings("unchecked")
+ private static double alternativeMultiplier(Map<String,Object> member,String crowdedLane){
+  Object raw=member.get("laneProfiles");
+  if(!(raw instanceof List))return 1.0;
+
+  boolean hasOtherThree=false;
+  boolean hasOtherTwo=false;
+  boolean hasOtherOne=false;
+
+  for(Object value:(List<Object>)raw){
+   if(!(value instanceof Map))continue;
+   Map<String,Object> profile=(Map<String,Object>)value;
+   String position=String.valueOf(profile.get("positionCode")).trim().toUpperCase(Locale.ROOT);
+   int preference=number(profile.get("preferenceScore"),0);
+
+   if(!LANES.contains(position)||position.equals(crowdedLane))continue;
+   if(preference==3)hasOtherThree=true;
+   else if(preference==2)hasOtherTwo=true;
+   else if(preference==1)hasOtherOne=true;
+  }
+
+  if(hasOtherThree)return 0.40;
+  if(hasOtherTwo)return 0.50;
+  if(hasOtherOne)return 0.70;
   return 1.0;
  }
 
